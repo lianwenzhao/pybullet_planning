@@ -63,13 +63,13 @@ def elapsed_time(start_time):
 
 MouseEvent = namedtuple('MouseEvent', ['eventType', 'mousePosX', 'mousePosY', 'buttonIndex', 'buttonState'])
 
-def get_mouse_events():
-    return list(MouseEvent(*event) for event in p.getMouseEvents(physicsClientId=CLIENT))
+def get_mouse_events(client_id):
+    return list(MouseEvent(*event) for event in p.getMouseEvents(physicsClientId=client_id))
 
-def update_viewer():
+def update_viewer(client_id):
     # https://docs.python.org/2/library/select.html
     # events = p.getKeyboardEvents() # TODO: only works when the viewer is in focus
-    get_mouse_events()
+    get_mouse_events(client_id)
     # for k, v in keys.items():
     #    #p.KEY_IS_DOWN, p.KEY_WAS_RELEASED, p.KEY_WAS_TRIGGERED
     #    if (k == p.B3G_RETURN) and (v & p.KEY_WAS_TRIGGERED):
@@ -120,28 +120,28 @@ def simulate_for_sim_duration(sim_duration, real_dt=0, frequency=INF):
         time.sleep(real_dt)
 
 
-def wait_for_user(message='Press enter to continue'):
+def wait_for_user(client_id, message='Press enter to continue'):
     from pybullet_planning.interfaces.env_manager.simulation import has_gui
-    if has_gui() and is_darwin():
+    if has_gui(client_id) and is_darwin():
         # OS X doesn't multi-thread the OpenGL visualizer
         #wait_for_interrupt()
-        return threaded_input(message)
+        return threaded_input(client_id, message)
     return user_input(message)
 
 
-def wait_if_gui(*args, **kwargs):
+def wait_if_gui(client_id, *args, **kwargs):
     from pybullet_planning.interfaces.env_manager.simulation import has_gui
-    if has_gui():
-        wait_for_user(*args, **kwargs)
+    if has_gui(client_id):
+        wait_for_user(client_id, *args, **kwargs)
 
 
 def is_unlocked():
     return CLIENTS[CLIENT] is True
 
 
-def wait_if_unlocked(*args, **kwargs):
+def wait_if_unlocked(client_id, *args, **kwargs):
     if is_unlocked():
-        wait_for_user(*args, **kwargs)
+        wait_for_user(client_id, *args, **kwargs)
 
 
 def wait_for_interrupt(max_time=np.inf):
@@ -170,7 +170,7 @@ def step_simulation():
     p.stepSimulation(physicsClientId=CLIENT)
 
 
-def threaded_input(*args, **kwargs):
+def threaded_input(client_id, *args, **kwargs):
     # OS X doesn't multi-thread the OpenGL visualizer
     # http://openrave.org/docs/0.8.2/_modules/openravepy/misc/#SetViewerUserThread
     # https://github.com/bulletphysics/bullet3/blob/master/examples/pybullet/examples/userData.py
@@ -196,7 +196,7 @@ def threaded_input(*args, **kwargs):
     #        break
     try:
         while thread.is_alive():
-            update_viewer()
+            update_viewer(client_id)
     finally:
         thread.join()
     return data[-1]

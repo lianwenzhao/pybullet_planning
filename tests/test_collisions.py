@@ -46,31 +46,33 @@ def obstacle_obj_path():
 #     # return False
 
 def test_collision_fn(viewer, robot_path, ee_path, workspace_path, attach_obj_path, obstacle_obj_path):
-    connect(use_gui=viewer)
+    client_id = connect(use_gui=viewer)
+    print('-' * 100)
+    print(client_id)
     with HideOutput():
-        robot = load_pybullet(robot_path, fixed_base=True)
-        workspace = load_pybullet(workspace_path, fixed_base=True)
-        ee_body = create_obj(ee_path)
-        attached_bar_body = create_obj(attach_obj_path)
-        box_body = create_obj(obstacle_obj_path)
+        robot = load_pybullet(client_id, robot_path, fixed_base=True)
+        workspace = load_pybullet(client_id, workspace_path, fixed_base=True)
+        ee_body = create_obj(client_id, ee_path)
+        attached_bar_body = create_obj(client_id, attach_obj_path)
+        box_body = create_obj(client_id, obstacle_obj_path)
         if sys.version_info[0] >= 3:
             assert isinstance(robot, int) and isinstance(ee_body, int)
         else:
             assert isinstance(robot, (long, int)) and isinstance(ee_body, (long, int))
-    dump_world()
+    dump_world(client_id)
 
     # * adjust camera pose (optional)
-    if has_gui():
+    if has_gui(client_id):
         camera_base_pt = (0,0,0)
         camera_pt = np.array(camera_base_pt) + np.array([1, -0.5, 0.5])
-        set_camera_pose(tuple(camera_pt), camera_base_pt)
+        set_camera_pose(client_id, tuple(camera_pt), camera_base_pt)
 
-    ik_joints = get_movable_joints(robot)
+    ik_joints = get_movable_joints(client_id, robot)
     robot_start_conf = [0,-1.65715,1.71108,-1.62348,0,0]
-    set_joint_positions(robot, ik_joints, robot_start_conf)
+    set_joint_positions(client_id, robot, ik_joints, robot_start_conf)
 
     tool_attach_link_name = 'ee_link'
-    tool_attach_link = link_from_name(robot, tool_attach_link_name)
+    tool_attach_link = link_from_name(client_id, robot, tool_attach_link_name)
     assert isinstance(tool_attach_link, int)
 
     robot_self_collision_disabled_link_names = [('base_link', 'shoulder_link'),
@@ -79,38 +81,38 @@ def test_collision_fn(viewer, robot_path, ee_path, workspace_path, attach_obj_pa
         ('forearm_link', 'wrist_1_link'), ('shoulder_link', 'upper_arm_link'),
         ('wrist_1_link', 'wrist_2_link'), ('wrist_1_link', 'wrist_3_link'),
         ('wrist_2_link', 'wrist_3_link')]
-    self_collision_links = get_disabled_collisions(robot, robot_self_collision_disabled_link_names)
+    self_collision_links = get_disabled_collisions(client_id, robot, robot_self_collision_disabled_link_names)
     assert all(isinstance(lp, tuple) for lp in self_collision_links)
     for lp in self_collision_links:
-        assert len(lp) == 2 and has_link(robot, get_link_name(robot, lp[0])) and has_link(robot, get_link_name(robot, lp[1]))
+        assert len(lp) == 2 and has_link(client_id, robot, get_link_name(client_id, robot, lp[0])) and has_link(client_id, robot, get_link_name(client_id, robot, lp[1]))
 
     extra_disabled_link_names = [('base_link', 'MIT_3412_robot_base_plate'),
                                  ('shoulder_link', 'MIT_3412_robot_base_plate')]
-    extra_disabled_collisions = get_body_body_disabled_collisions(robot, workspace, extra_disabled_link_names)
+    extra_disabled_collisions = get_body_body_disabled_collisions(client_id, robot, workspace, extra_disabled_link_names)
     for bbl in list(extra_disabled_collisions):
         assert isinstance(bbl[0], tuple) and isinstance(bbl[1], tuple)
         if bbl[0][0] == robot:
-            assert has_link(robot, get_link_name(robot, bbl[0][1]))
-            assert bbl[1][0] == workspace and has_link(workspace, get_link_name(workspace, bbl[1][1]))
+            assert has_link(client_id, robot, get_link_name(client_id, robot, bbl[0][1]))
+            assert bbl[1][0] == workspace and has_link(client_id, workspace, get_link_name(client_id, workspace, bbl[1][1]))
         else:
-            assert bbl[0][0] == workspace and has_link(workspace, get_link_name(workspace, bbl[0][1]))
-            assert bbl[1][0] == robot and has_link(robot, get_link_name(robot, bbl[1][1]))
+            assert bbl[0][0] == workspace and has_link(client_id, workspace, get_link_name(client_id, workspace, bbl[0][1]))
+            assert bbl[1][0] == robot and has_link(client_id, robot, get_link_name(client_id, robot, bbl[1][1]))
 
-    assert are_links_adjacent(robot, link_from_name(robot, 'wrist_3_link'), tool_attach_link)
-    extra_disabled_collisions.add(((robot, link_from_name(robot, 'wrist_3_link')), (ee_body, BASE_LINK)))
+    assert are_links_adjacent(client_id, robot, link_from_name(client_id, robot, 'wrist_3_link'), tool_attach_link)
+    extra_disabled_collisions.add(((robot, link_from_name(client_id, robot, 'wrist_3_link')), (ee_body, BASE_LINK)))
     print('extra diasabled: {}'.format(extra_disabled_collisions))
 
     # * attach the end effector
-    ee_link_pose = get_link_pose(robot, tool_attach_link)
-    set_pose(ee_body, ee_link_pose)
-    ee_attach = create_attachment(robot, tool_attach_link, ee_body)
+    ee_link_pose = get_link_pose(client_id, robot, tool_attach_link)
+    set_pose(client_id, ee_body, ee_link_pose)
+    ee_attach = create_attachment(client_id, robot, tool_attach_link, ee_body)
     assert isinstance(ee_attach, Attachment)
     ee_attach.assign()
 
     # * attach the bar
     ee_link_from_tcp = Pose(point=(0.094, 0, 0))
-    set_pose(attached_bar_body, multiply(ee_link_pose, ee_link_from_tcp))
-    bar_attach = create_attachment(robot, tool_attach_link, attached_bar_body)
+    set_pose(client_id, attached_bar_body, multiply(ee_link_pose, ee_link_from_tcp))
+    bar_attach = create_attachment(client_id, robot, tool_attach_link, attached_bar_body)
     assert isinstance(bar_attach, Attachment)
     bar_attach.assign()
 
@@ -119,7 +121,7 @@ def test_collision_fn(viewer, robot_path, ee_path, workspace_path, attach_obj_pa
     # * collision checks
     print('#'*10)
     print('robot links self-collision')
-    collision_fn = get_collision_fn(robot, ik_joints, obstacles=[],
+    collision_fn = get_collision_fn(client_id, robot, ik_joints, obstacles=[],
                                     attachments=attachments, self_collisions=True,
                                     disabled_collisions=self_collision_links)
     conf = [-1.029744, -1.623156, 2.844887, -0.977384, 1.58825, 0.314159]
@@ -128,7 +130,7 @@ def test_collision_fn(viewer, robot_path, ee_path, workspace_path, attach_obj_pa
 
     print('#'*10)
     print('robot links - holding attachment self-collision')
-    collision_fn = get_collision_fn(robot, ik_joints, obstacles=[],
+    collision_fn = get_collision_fn(client_id, robot, ik_joints, obstacles=[],
                                     attachments=attachments, self_collisions=True,
                                     disabled_collisions=self_collision_links,
                                     extra_disabled_collisions=extra_disabled_collisions)
@@ -139,7 +141,7 @@ def test_collision_fn(viewer, robot_path, ee_path, workspace_path, attach_obj_pa
 
     print('#'*10)
     print('robot links to obstacles (w/o links) collision')
-    collision_fn = get_collision_fn(robot, ik_joints, obstacles=[box_body],
+    collision_fn = get_collision_fn(client_id, robot, ik_joints, obstacles=[box_body],
                                     attachments=attachments, self_collisions=True,
                                     disabled_collisions=self_collision_links,
                                     extra_disabled_collisions=extra_disabled_collisions)
@@ -150,7 +152,7 @@ def test_collision_fn(viewer, robot_path, ee_path, workspace_path, attach_obj_pa
 
     print('#'*10)
     print('robot links to multi-link obstacle collision')
-    collision_fn = get_collision_fn(robot, ik_joints, obstacles=[workspace],
+    collision_fn = get_collision_fn(client_id, robot, ik_joints, obstacles=[workspace],
                                     attachments=[], self_collisions=True,
                                     disabled_collisions=self_collision_links,
                                     extra_disabled_collisions=extra_disabled_collisions)
@@ -161,7 +163,7 @@ def test_collision_fn(viewer, robot_path, ee_path, workspace_path, attach_obj_pa
 
     print('#'*10)
     print('attachment to obstacles (w/o links) collision')
-    collision_fn = get_collision_fn(robot, ik_joints, obstacles=[workspace, box_body],
+    collision_fn = get_collision_fn(client_id, robot, ik_joints, obstacles=[workspace, box_body],
                                     attachments=attachments, self_collisions=True,
                                     disabled_collisions=self_collision_links,
                                     extra_disabled_collisions=extra_disabled_collisions)
@@ -172,7 +174,7 @@ def test_collision_fn(viewer, robot_path, ee_path, workspace_path, attach_obj_pa
 
     print('#'*10)
     print('attachment to multi-link obstacle collision')
-    collision_fn = get_collision_fn(robot, ik_joints, obstacles=[workspace],
+    collision_fn = get_collision_fn(client_id, robot, ik_joints, obstacles=[workspace],
                                     attachments=attachments, self_collisions=True,
                                     disabled_collisions=self_collision_links,
                                     extra_disabled_collisions=extra_disabled_collisions)
@@ -184,7 +186,7 @@ def test_collision_fn(viewer, robot_path, ee_path, workspace_path, attach_obj_pa
     # * collision checking exoneration
     print('#'*10)
     print('self-link collision disable')
-    collision_fn = get_collision_fn(robot, ik_joints, obstacles=[],
+    collision_fn = get_collision_fn(client_id, robot, ik_joints, obstacles=[],
                                     attachments=[], self_collisions=False)
     conf = [-1.029744, -1.623156, 2.844887, -0.977384, 1.58825, 0.314159]
     assert not collision_fn(conf, diagnosis=True)
@@ -192,15 +194,15 @@ def test_collision_fn(viewer, robot_path, ee_path, workspace_path, attach_obj_pa
 
     print('#'*10)
     print('robot links to obstacle collision exoneration')
-    collision_fn = get_collision_fn(robot, ik_joints, obstacles=[box_body],
+    collision_fn = get_collision_fn(client_id, robot, ik_joints, obstacles=[box_body],
                                             attachments=[], self_collisions=True,
                                             disabled_collisions=self_collision_links,
                                             )
-    collision_fn_disable = get_collision_fn(robot, ik_joints, obstacles=[box_body],
+    collision_fn_disable = get_collision_fn(client_id, robot, ik_joints, obstacles=[box_body],
                                             attachments=[], self_collisions=True,
                                             disabled_collisions=self_collision_links,
                                             extra_disabled_collisions=extra_disabled_collisions.union(
-                                                [((robot, link_from_name(robot, 'forearm_link')),
+                                                [((robot, link_from_name(client_id, robot, 'forearm_link')),
                                                   (box_body, BASE_LINK))]),
                                             )
     conf = [-3.2639999999999998, -2.6880000000000002, -0.85499999999999998, -1.536, 3.0369999999999999, -0.070000000000000007]
@@ -211,32 +213,32 @@ def test_collision_fn(viewer, robot_path, ee_path, workspace_path, attach_obj_pa
 
     print('#'*10)
     print('robot links to multi-links obstacles collision exoneration')
-    set_pose(workspace, Pose(point=(0,0,0.03)))
-    collision_fn = get_collision_fn(robot, ik_joints, obstacles=[workspace],
+    set_pose(client_id, workspace, Pose(point=(0,0,0.03)))
+    collision_fn = get_collision_fn(client_id, robot, ik_joints, obstacles=[workspace],
                                             attachments=[], self_collisions=True,
                                             disabled_collisions=self_collision_links,
                                             )
-    collision_fn_disable = get_collision_fn(robot, ik_joints, obstacles=[workspace],
+    collision_fn_disable = get_collision_fn(client_id, robot, ik_joints, obstacles=[workspace],
                                             attachments=[], self_collisions=True,
                                             disabled_collisions=self_collision_links,
                                             extra_disabled_collisions=extra_disabled_collisions.union(
-                                                [((robot, link_from_name(robot, 'upper_arm_link')),
-                                                  (workspace, link_from_name(workspace, 'MIT_3412_robot_base_plate')))]),
+                                                [((robot, link_from_name(client_id, robot, 'upper_arm_link')),
+                                                  (workspace, link_from_name(client_id, workspace, 'MIT_3412_robot_base_plate')))]),
                                             )
     conf = [-3.0019999999999998, -1.8680000000000001, 0.33200000000000002, -1.6579999999999999, 1.431, 0.105]
     with pytest.warns(UserWarning, match='moving body - body collision!'):
         assert collision_fn(conf, diagnosis=True)
     assert not collision_fn_disable(conf, diagnosis=True)
-    set_pose(workspace, Pose(point=(0,0,0)))
+    set_pose(client_id, workspace, Pose(point=(0,0,0)))
     print('\n')
 
     print('#'*10)
     print('attachment to obstacles collision exoneration')
-    collision_fn = get_collision_fn(robot, ik_joints, obstacles=[workspace, box_body],
+    collision_fn = get_collision_fn(client_id, robot, ik_joints, obstacles=[workspace, box_body],
                                     attachments=[ee_attach], self_collisions=True,
                                     disabled_collisions=self_collision_links,
                                     extra_disabled_collisions=extra_disabled_collisions)
-    collision_fn_disabled = get_collision_fn(robot, ik_joints, obstacles=[workspace, box_body],
+    collision_fn_disabled = get_collision_fn(client_id, robot, ik_joints, obstacles=[workspace, box_body],
                                              attachments=[ee_attach], self_collisions=True,
                                              disabled_collisions=self_collision_links,
                                              extra_disabled_collisions=extra_disabled_collisions.union(
@@ -250,15 +252,15 @@ def test_collision_fn(viewer, robot_path, ee_path, workspace_path, attach_obj_pa
 
     print('#'*10)
     print('attachment to multi-links obstacles collision exoneration')
-    collision_fn = get_collision_fn(robot, ik_joints, obstacles=[workspace],
+    collision_fn = get_collision_fn(client_id, robot, ik_joints, obstacles=[workspace],
                                     attachments=[ee_attach], self_collisions=True,
                                     disabled_collisions=self_collision_links,
                                     extra_disabled_collisions=extra_disabled_collisions)
-    collision_fn_disabled = get_collision_fn(robot, ik_joints, obstacles=[workspace],
+    collision_fn_disabled = get_collision_fn(client_id, robot, ik_joints, obstacles=[workspace],
                                              attachments=[ee_attach], self_collisions=True,
                                              disabled_collisions=self_collision_links,
                                              extra_disabled_collisions=extra_disabled_collisions.union(
-                                                        [((workspace, link_from_name(workspace, 'MIT_3412_fab_table')),
+                                                        [((workspace, link_from_name(client_id, workspace, 'MIT_3412_fab_table')),
                                                           (ee_attach.child, BASE_LINK))]),
                                             )
     conf = [-2.8450000000000002, -2.1469999999999998, -1.99, -0.92500000000000004, 1.78, 0.105]
@@ -270,11 +272,11 @@ def test_collision_fn(viewer, robot_path, ee_path, workspace_path, attach_obj_pa
     # * joint value overflow checking & exoneration
     print('joint value overflow checking & exoneration')
     def get_custom_limits_from_name(robot, joint_limits):
-        return {joint_from_name(robot, joint): limits
+        return {joint_from_name(client_id, robot, joint): limits
                 for joint, limits in joint_limits.items()}
     custom_limits = get_custom_limits_from_name(robot, {'shoulder_pan_joint':(-7.9, 0), 'elbow_joint':(-8.0, 0)})
-    collision_fn = get_collision_fn(robot, ik_joints)
-    collision_fn_disable = get_collision_fn(robot, ik_joints, custom_limits=custom_limits)
+    collision_fn = get_collision_fn(client_id, robot, ik_joints)
+    collision_fn_disable = get_collision_fn(client_id, robot, ik_joints, custom_limits=custom_limits)
     conf = [-7.8450000000000002, -2.1469999999999998, -7.99, -0.92500000000000004, 1.78, 0.105]
     with pytest.warns(UserWarning, match='joint limit violation!'):
         assert collision_fn(conf, diagnosis=True)
@@ -283,37 +285,37 @@ def test_collision_fn(viewer, robot_path, ee_path, workspace_path, attach_obj_pa
 
 @pytest.mark.wip
 def test_floating_collsion_fn(viewer, robot_path, ee_path, workspace_path, attach_obj_path, obstacle_obj_path):
-    connect(use_gui=viewer)
+    client_id = connect(use_gui=viewer)
     with HideOutput():
-        robot = load_pybullet(robot_path, fixed_base=True)
-        workspace = load_pybullet(workspace_path, fixed_base=True)
-        ee_body = create_obj(ee_path)
-        attached_bar_body = create_obj(attach_obj_path)
-        box_body = create_obj(obstacle_obj_path)
-    dump_world()
+        robot = load_pybullet(client_id, robot_path, fixed_base=True)
+        workspace = load_pybullet(client_id, workspace_path, fixed_base=True)
+        ee_body = create_obj(client_id, ee_path)
+        attached_bar_body = create_obj(client_id, attach_obj_path)
+        box_body = create_obj(client_id, obstacle_obj_path)
+    dump_world(client_id)
 
     # * adjust camera pose (optional)
-    if has_gui():
+    if has_gui(client_id):
         camera_base_pt = (0,0,0)
         camera_pt = np.array(camera_base_pt) + np.array([1, -0.5, 0.5])
-        set_camera_pose(tuple(camera_pt), camera_base_pt)
+        set_camera_pose(client_id, tuple(camera_pt), camera_base_pt)
 
-    ik_joints = get_movable_joints(robot)
+    ik_joints = get_movable_joints(client_id, robot)
     robot_start_conf = [0,-1.65715,1.71108,-1.62348,0,0]
-    set_joint_positions(robot, ik_joints, robot_start_conf)
+    set_joint_positions(client_id, robot, ik_joints, robot_start_conf)
 
     tool_attach_link_name = 'ee_link'
-    tool_attach_link = link_from_name(robot, tool_attach_link_name)
+    tool_attach_link = link_from_name(client_id, robot, tool_attach_link_name)
     assert isinstance(tool_attach_link, int)
 
     print('#'*10)
     print('floating body to obstacles collision exoneration')
     conf = [-3.0369999999999999, -1.6060000000000001, -1.99, -0.92500000000000004, 1.78, 0.105]
-    set_joint_positions(robot, ik_joints, conf)
-    world_from_tool0 = get_link_pose(robot, tool_attach_link)
-    fb_collision_fn = get_floating_body_collision_fn(ee_body, obstacles=[box_body],
+    set_joint_positions(client_id, robot, ik_joints, conf)
+    world_from_tool0 = get_link_pose(client_id, robot, tool_attach_link)
+    fb_collision_fn = get_floating_body_collision_fn(client_id, ee_body, obstacles=[box_body],
                                                      attachments=[], disabled_collisions=[])
-    fb_collision_fn_disable = get_floating_body_collision_fn(ee_body, obstacles=[box_body],
+    fb_collision_fn_disable = get_floating_body_collision_fn(client_id, ee_body, obstacles=[box_body],
                                                      attachments=[], disabled_collisions=
                                                      {((box_body, BASE_LINK), (ee_body, BASE_LINK))})
     with pytest.warns(UserWarning, match='moving body - body collision!'):
@@ -324,15 +326,27 @@ def test_floating_collsion_fn(viewer, robot_path, ee_path, workspace_path, attac
     print('#'*10)
     print('attachment to multi-links obstacles collision exoneration')
     conf = [-2.8450000000000002, -2.1469999999999998, -1.99, -0.92500000000000004, 1.78, 0.105]
-    set_joint_positions(robot, ik_joints, conf)
-    world_from_tool0 = get_link_pose(robot, tool_attach_link)
-    fb_collision_fn = get_floating_body_collision_fn(ee_body, obstacles=[workspace],
+    set_joint_positions(client_id, robot, ik_joints, conf)
+    world_from_tool0 = get_link_pose(client_id, robot, tool_attach_link)
+    fb_collision_fn = get_floating_body_collision_fn(client_id, ee_body, obstacles=[workspace],
                                                      attachments=[], disabled_collisions=[])
-    fb_collision_fn_disable = get_floating_body_collision_fn(ee_body, obstacles=[workspace],
+    fb_collision_fn_disable = get_floating_body_collision_fn(client_id, ee_body, obstacles=[workspace],
                                                      attachments=[], disabled_collisions=
-                                                     {((workspace, link_from_name(workspace, 'MIT_3412_fab_table')),
+                                                     {((workspace, link_from_name(client_id, workspace, 'MIT_3412_fab_table')),
                                                        (ee_body, BASE_LINK))})
     with pytest.warns(UserWarning, match='moving body - body collision!'):
         assert fb_collision_fn(world_from_tool0, diagnosis=True)
     assert not fb_collision_fn_disable(world_from_tool0, diagnosis=True)
     print('\n')
+
+
+if __name__ == '__main__':
+    here = os.path.dirname(__file__)
+    test_collision_fn(
+        True,
+        os.path.join(here, 'test_data', 'universal_robot', 'ur_description', 'urdf', 'ur5.urdf'),
+        os.path.join(here, 'test_data', 'dms_bar_gripper.obj'),
+        os.path.join(here, 'test_data', 'mit_3-412_workspace', 'urdf', 'mit_3-412_workspace.urdf'),
+        os.path.join(here, 'test_data', 'bar_attachment.obj'),
+        os.path.join(here, 'test_data', 'box_obstacle.obj')
+    )

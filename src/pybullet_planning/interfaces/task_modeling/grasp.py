@@ -10,7 +10,8 @@ from pybullet_planning.interfaces.robots.link import get_link_subtree, get_link_
 # Grasps
 
 class Attachment(object):
-    def __init__(self, parent, parent_link, grasp_pose, child):
+    def __init__(self, client_id, parent, parent_link, grasp_pose, child):
+        self.client_id = client_id
         self.parent = parent
         self.parent_link = parent_link
         self.grasp_pose = grasp_pose
@@ -19,12 +20,12 @@ class Attachment(object):
     @property
     def bodies(self):
         from pybullet_planning.interfaces.robots.collision import flatten_links
-        return flatten_links(self.child) | flatten_links(self.parent, get_link_subtree(
-            self.parent, self.parent_link))
+        return flatten_links(self.client_id, self.child) | flatten_links(self.client_id, self.parent, get_link_subtree(
+            self.client_id, self.parent, self.parent_link))
     def assign(self):
-        parent_link_pose = get_link_pose(self.parent, self.parent_link)
+        parent_link_pose = get_link_pose(self.client_id, self.parent, self.parent_link)
         child_pose = body_from_end_effector(parent_link_pose, self.grasp_pose)
-        set_pose(self.child, child_pose)
+        set_pose(self.client_id, self.child, child_pose)
         return child_pose
     def apply_mapping(self, mapping):
         self.parent = mapping.get(self.parent, self.parent)
@@ -33,34 +34,34 @@ class Attachment(object):
         from pybullet_planning.interfaces.robots.body import get_body_name, get_name
         from pybullet_planning.interfaces.robots.link import get_link_name
         data = {}
-        data['parent_name'] = get_body_name(self.parent)
-        data['parent_link_name'] = get_link_name(self.parent, self.parent_link)
+        data['parent_name'] = get_body_name(self.client_id, self.parent)
+        data['parent_link_name'] = get_link_name(self.client_id, self.parent, self.parent_link)
         data['grasp_pose'] = self.grasp_pose
-        child_name =  get_body_name(self.child)
-        data['child_name'] = get_name(self.child) if child_name == '' else child_name
+        child_name =  get_body_name(self.client_id, self.child)
+        data['child_name'] = get_name(self.client_id, self.child) if child_name == '' else child_name
         return data
     @classmethod
-    def from_data(cls, data, parent=None, child=None):
+    def from_data(cls, client_id, data, parent=None, child=None):
         from pybullet_planning.interfaces.env_manager.simulation import is_connected
         from pybullet_planning.interfaces.robots.body import body_from_name, get_bodies
         from pybullet_planning.interfaces.robots.link import link_from_name
         if parent is None:
-            parent = body_from_name(data['parent_name'])
+            parent = body_from_name(client_id, data['parent_name'])
         else:
-            assert parent in get_bodies()
+            assert parent in get_bodies(client_id)
         if child is None:
-            child = body_from_name(data['child_name'])
+            child = body_from_name(client_id, data['child_name'])
         else:
-            assert child in get_bodies()
-        parent_link = link_from_name(parent, data['parent_link_name'])
+            assert child in get_bodies(client_id)
+        parent_link = link_from_name(client_id, parent, data['parent_link_name'])
         grasp_pose = data['grasp_pose']
-        return cls(parent, parent_link, grasp_pose, child)
+        return cls(client_id, parent, parent_link, grasp_pose, child)
 
     def __repr__(self):
         return '{}({},{})'.format(self.__class__.__name__, self.parent, self.child)
 
 
-def create_attachment(parent, parent_link, child):
+def create_attachment(client_id, parent, parent_link, child):
     """create an Attachment between the parent body's parent_link and child body, based on their **current pose**
 
     Parameters
@@ -76,10 +77,10 @@ def create_attachment(parent, parent_link, child):
     -------
     Attachment
     """
-    parent_link_pose = get_link_pose(parent, parent_link)
-    child_pose = get_pose(child)
+    parent_link_pose = get_link_pose(client_id, parent, parent_link)
+    child_pose = get_pose(client_id, child)
     grasp_pose = multiply(invert(parent_link_pose), child_pose)
-    return Attachment(parent, parent_link, grasp_pose, child)
+    return Attachment(client_id, parent, parent_link, grasp_pose, child)
 
 ######################################################################
 
@@ -143,7 +144,7 @@ def approach_from_grasp(approach_pose, end_effector_pose):
     """
     return multiply(approach_pose, end_effector_pose)
 
-def get_grasp_pose(constraint):
+def get_grasp_pose(client_id, constraint):
     """get grasp poses from a constraint
 
     Parameters
@@ -157,7 +158,7 @@ def get_grasp_pose(constraint):
         [description]
     """
     from pybullet_planning.interfaces.task_modeling.constraint import get_constraint_info
-    constraint_info = get_constraint_info(constraint)
+    constraint_info = get_constraint_info(client_id, constraint)
     assert(constraint_info.constraintType == p.JOINT_FIXED)
     joint_from_parent = (constraint_info.jointPivotInParent, constraint_info.jointFrameOrientationParent)
     joint_from_child = (constraint_info.jointPivotInChild, constraint_info.jointFrameOrientationChild)

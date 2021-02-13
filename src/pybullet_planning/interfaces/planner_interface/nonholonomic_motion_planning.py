@@ -9,11 +9,11 @@ from pybullet_planning.interfaces.planner_interface.joint_motion_planning import
 
 #####################################
 
-def get_closest_angle_fn(body, joints, linear_weight=1., angular_weight=1., reversible=True):
+def get_closest_angle_fn(client_id, body, joints, linear_weight=1., angular_weight=1., reversible=True):
     from pybullet_planning.interfaces.env_manager.pose_transformation import get_angle
     assert len(joints) == 3
-    linear_extend_fn = get_distance_fn(body, joints[:2], weights=linear_weight*np.ones(2))
-    angular_extend_fn = get_distance_fn(body, joints[2:], weights=[angular_weight])
+    linear_extend_fn = get_distance_fn(client_id, body, joints[:2], weights=linear_weight*np.ones(2))
+    angular_extend_fn = get_distance_fn(client_id, body, joints[2:], weights=[angular_weight])
 
     def closest_fn(q1, q2):
         angle_and_distance = []
@@ -26,21 +26,21 @@ def get_closest_angle_fn(body, joints, linear_weight=1., angular_weight=1., reve
         return min(angle_and_distance, key=lambda pair: pair[1])
     return closest_fn
 
-def get_nonholonomic_distance_fn(body, joints, weights=None, **kwargs):
+def get_nonholonomic_distance_fn(client_id, body, joints, weights=None, **kwargs):
     assert weights is None
-    closest_angle_fn = get_closest_angle_fn(body, joints, **kwargs)
+    closest_angle_fn = get_closest_angle_fn(client_id, body, joints, **kwargs)
 
     def distance_fn(q1, q2):
         _, distance = closest_angle_fn(q1, q2)
         return distance
     return distance_fn
 
-def get_nonholonomic_extend_fn(body, joints, resolutions=None, **kwargs):
+def get_nonholonomic_extend_fn(client_id, body, joints, resolutions=None, **kwargs):
     assert resolutions is None
     assert len(joints) == 3
-    linear_extend_fn = get_extend_fn(body, joints[:2])
-    angular_extend_fn = get_extend_fn(body, joints[2:])
-    closest_angle_fn = get_closest_angle_fn(body, joints, **kwargs)
+    linear_extend_fn = get_extend_fn(client_id, body, joints[:2])
+    angular_extend_fn = get_extend_fn(client_id, body, joints[2:])
+    closest_angle_fn = get_closest_angle_fn(client_id, body, joints, **kwargs)
 
     def extend_fn(q1, q2):
         angle, _ = closest_angle_fn(q1, q2)
@@ -54,7 +54,7 @@ def get_nonholonomic_extend_fn(body, joints, resolutions=None, **kwargs):
         return path
     return extend_fn
 
-def plan_nonholonomic_motion(body, joints, end_conf, obstacles=[], attachments=[],
+def plan_nonholonomic_motion(client_id, body, joints, end_conf, obstacles=[], attachments=[],
                              self_collisions=True, disabled_collisions=set(),
                              weights=None, resolutions=None, reversible=True,
                              max_distance=MAX_DISTANCE, custom_limits={}, **kwargs):
@@ -62,13 +62,13 @@ def plan_nonholonomic_motion(body, joints, end_conf, obstacles=[], attachments=[
 
     assert len(joints) == len(end_conf)
     sample_fn = get_sample_fn(body, joints, custom_limits=custom_limits)
-    distance_fn = get_nonholonomic_distance_fn(body, joints, weights=weights, reversible=reversible)
-    extend_fn = get_nonholonomic_extend_fn(body, joints, resolutions=resolutions, reversible=reversible)
-    collision_fn = get_collision_fn(body, joints, obstacles, attachments,
+    distance_fn = get_nonholonomic_distance_fn(client_id, body, joints, weights=weights, reversible=reversible)
+    extend_fn = get_nonholonomic_extend_fn(client_id, body, joints, resolutions=resolutions, reversible=reversible)
+    collision_fn = get_collision_fn(client_id, body, joints, obstacles, attachments,
                                     self_collisions, disabled_collisions,
                                     custom_limits=custom_limits, max_distance=max_distance)
 
-    start_conf = get_joint_positions(body, joints)
+    start_conf = get_joint_positions(client_id, body, joints)
     if not check_initial_end(start_conf, end_conf, collision_fn):
         return None
     return birrt(start_conf, end_conf, distance_fn, sample_fn, extend_fn, collision_fn, **kwargs)

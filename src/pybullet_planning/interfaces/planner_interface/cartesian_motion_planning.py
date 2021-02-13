@@ -19,15 +19,15 @@ from .dag_search import DAGSearch
 
 NullSpace = namedtuple('Nullspace', ['lower', 'upper', 'range', 'rest'])
 
-def get_null_space(robot, joints, custom_limits={}):
-    rest_positions = get_joint_positions(robot, joints)
-    lower, upper = get_custom_limits(robot, joints, custom_limits)
+def get_null_space(client_id, robot, joints, custom_limits={}):
+    rest_positions = get_joint_positions(client_id, robot, joints)
+    lower, upper = get_custom_limits(client_id, robot, joints, custom_limits)
     lower = np.maximum(lower, -10*np.ones(len(joints)))
     upper = np.minimum(upper, +10*np.ones(len(joints)))
     joint_ranges = 10*np.ones(len(joints))
     return NullSpace(list(lower), list(upper), list(joint_ranges), list(rest_positions))
 
-def plan_cartesian_motion(robot, first_joint, target_link, waypoint_poses,
+def plan_cartesian_motion(client_id, robot, first_joint, target_link, waypoint_poses,
                           max_iterations=200, custom_limits={}, get_sub_conf=False, **kwargs):
     """Compute a joint trajectory for a given sequence of workspace poses. Only joint limit is considered.
     Collision checking using `get_collision_fn` is often performed on the path computed by this function.
@@ -73,34 +73,34 @@ def plan_cartesian_motion(robot, first_joint, target_link, waypoint_poses,
     # https://github.com/bulletphysics/bullet3/blob/master/examples/pybullet/examples/inverse_kinematics_husky_kuka.py
     # TODO: plan a path without needing to following intermediate waypoints
 
-    lower_limits, upper_limits = get_custom_limits(robot, get_movable_joints(robot), custom_limits)
-    selected_links = get_link_subtree(robot, first_joint) # TODO: child_link_from_joint?
-    selected_movable_joints = prune_fixed_joints(robot, selected_links)
+    lower_limits, upper_limits = get_custom_limits(client_id, robot, get_movable_joints(client_id, robot), custom_limits)
+    selected_links = get_link_subtree(client_id, robot, first_joint) # TODO: child_link_from_joint?
+    selected_movable_joints = prune_fixed_joints(client_id, robot, selected_links)
     assert(target_link in selected_links)
     selected_target_link = selected_links.index(target_link)
-    sub_robot = clone_body(robot, links=selected_links, visual=False, collision=False) # TODO: joint limits
-    sub_movable_joints = get_movable_joints(sub_robot)
+    sub_robot = clone_body(client_id, robot, links=selected_links, visual=False, collision=False) # TODO: joint limits
+    sub_movable_joints = get_movable_joints(client_id, sub_robot)
     #null_space = get_null_space(robot, selected_movable_joints, custom_limits=custom_limits)
     null_space = None
 
     solutions = []
     for target_pose in waypoint_poses:
         for iteration in range(max_iterations):
-            sub_kinematic_conf = inverse_kinematics_helper(sub_robot, selected_target_link, target_pose, null_space=null_space)
+            sub_kinematic_conf = inverse_kinematics_helper(client_id, sub_robot, selected_target_link, target_pose, null_space=null_space)
             if sub_kinematic_conf is None:
-                remove_body(sub_robot)
+                remove_body(client_id, sub_robot)
                 return None
-            set_joint_positions(sub_robot, sub_movable_joints, sub_kinematic_conf)
-            if is_pose_close(get_link_pose(sub_robot, selected_target_link), target_pose, **kwargs):
-                set_joint_positions(robot, selected_movable_joints, sub_kinematic_conf)
-                kinematic_conf = get_configuration(robot)
+            set_joint_positions(client_id, sub_robot, sub_movable_joints, sub_kinematic_conf)
+            if is_pose_close(get_link_pose(client_id, sub_robot, selected_target_link), target_pose, **kwargs):
+                set_joint_positions(client_id, robot, selected_movable_joints, sub_kinematic_conf)
+                kinematic_conf = get_configuration(client_id, robot)
                 if not all_between(lower_limits, kinematic_conf, upper_limits):
                     #movable_joints = get_movable_joints(robot)
                     #print([(get_joint_name(robot, j), l, v, u) for j, l, v, u in
                     #       zip(movable_joints, lower_limits, kinematic_conf, upper_limits) if not (l <= v <= u)])
                     #print("Limits violated")
                     #wait_for_user()
-                    remove_body(sub_robot)
+                    remove_body(client_id, sub_robot)
                     return None
                 #print("IK iterations:", iteration)
                 if not get_sub_conf:
@@ -109,13 +109,13 @@ def plan_cartesian_motion(robot, first_joint, target_link, waypoint_poses,
                     solutions.append(sub_kinematic_conf)
                 break
         else:
-            remove_body(sub_robot)
+            remove_body(client_id, sub_robot)
             return None
-    remove_body(sub_robot)
+    remove_body(client_id, sub_robot)
     return solutions
 
-def sub_inverse_kinematics(robot, first_joint, target_link, target_pose, **kwargs):
-    solutions = plan_cartesian_motion(robot, first_joint, target_link, [target_pose], **kwargs)
+def sub_inverse_kinematics(client_id, robot, first_joint, target_link, target_pose, **kwargs):
+    solutions = plan_cartesian_motion(client_id, robot, first_joint, target_link, [target_pose], **kwargs)
     if solutions:
         return solutions[0]
     return None
@@ -124,7 +124,7 @@ def sub_inverse_kinematics(robot, first_joint, target_link, target_pose, **kwarg
 
 MAX_SAMPLE_ITER = int(1e4)
 
-def plan_cartesian_motion_lg(robot, joints, waypoint_poses, sample_ik_fn=None, collision_fn=None, sample_ee_fn=None,
+def plan_cartesian_motion_lg(client_id, robot, joints, waypoint_poses, sample_ik_fn=None, collision_fn=None, sample_ee_fn=None,
     max_sample_ee_iter=MAX_SAMPLE_ITER, custom_vel_limits={}, ee_vel=None, jump_threshold={}, **kwargs):
     """ladder graph cartesian planning, better leveraging ikfast for sample_ik_fn
 
@@ -227,7 +227,7 @@ def plan_cartesian_motion_lg(robot, joints, waypoint_poses, sample_ik_fn=None, c
         graph.assign_edges(i, edges)
 
     # * use current conf in the env as start_conf
-    start_conf = get_joint_positions(robot, joints)
+    start_conf = get_joint_positions(client_id, robot, joints)
     st_graph = LadderGraph(graph.dof)
     st_graph.resize(1)
     st_graph.assign_rung(0, [start_conf])

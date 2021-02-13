@@ -145,8 +145,8 @@ def get_unit_vector(vec):
 def z_rotation(theta):
     return quat_from_euler([0, 0, theta])
 
-def matrix_from_quat(quat):
-    return np.array(p.getMatrixFromQuaternion(quat, physicsClientId=CLIENT)).reshape(3, 3)
+def matrix_from_quat(client_id, quat):
+    return np.array(p.getMatrixFromQuaternion(quat, physicsClientId=client_id)).reshape(3, 3)
 
 def quat_from_matrix(mat):
     matrix = np.eye(4)
@@ -189,11 +189,11 @@ def quat_from_pose(pose):
     """
     return pose[1]
 
-def tform_from_pose(pose):
+def tform_from_pose(client_id, pose):
     (point, quat) = pose
     tform = np.eye(4)
     tform[:3,3] = point
-    tform[:3,:3] = matrix_from_quat(quat)
+    tform[:3,:3] = matrix_from_quat(client_id, quat)
     return tform
 
 def pose_from_tform(tform):
@@ -275,10 +275,10 @@ def apply_affine(affine, points):
 # placing here to resolve cycly dependencies
 # more can be found in inferfaces.robots.body
 
-def set_pose(body, pose):
+def set_pose(client_id, body, pose):
     (point, quat) = pose
-    p.resetBasePositionAndOrientation(body, point, quat, physicsClientId=CLIENT)
+    p.resetBasePositionAndOrientation(body, point, quat, physicsClientId=client_id)
 
-def get_pose(body):
-    return p.getBasePositionAndOrientation(body, physicsClientId=CLIENT)
+def get_pose(client_id, body):
+    return p.getBasePositionAndOrientation(body, physicsClientId=client_id)
     #return np.concatenate([point, quat])

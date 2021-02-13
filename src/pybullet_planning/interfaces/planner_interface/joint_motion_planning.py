@@ -47,38 +47,38 @@ def interval_generator(lower, upper, **kwargs):
         point = np.array(lower) + scale*extents
         yield point
 
-def get_sample_fn(body, joints, custom_limits={}, **kwargs):
-    lower_limits, upper_limits = get_custom_limits(body, joints, custom_limits, circular_limits=CIRCULAR_LIMITS)
+def get_sample_fn(client_id, body, joints, custom_limits={}, **kwargs):
+    lower_limits, upper_limits = get_custom_limits(client_id, body, joints, custom_limits, circular_limits=CIRCULAR_LIMITS)
     generator = interval_generator(lower_limits, upper_limits, **kwargs)
     def fn():
         return tuple(next(generator))
     return fn
 
-def get_halton_sample_fn(body, joints, **kwargs):
-    return get_sample_fn(body, joints, use_halton=True, **kwargs)
+def get_halton_sample_fn(client_id, body, joints, **kwargs):
+    return get_sample_fn(client_id, body, joints, use_halton=True, **kwargs)
 
-def get_difference_fn(body, joints):
+def get_difference_fn(client_id, body, joints):
     from pybullet_planning.interfaces.robots.joint import is_circular
-    circular_joints = [is_circular(body, joint) for joint in joints]
+    circular_joints = [is_circular(client_id, body, joint) for joint in joints]
 
     def fn(q2, q1):
         return tuple(circular_difference(value2, value1) if circular else (value2 - value1)
                      for circular, value2, value1 in zip(circular_joints, q2, q1))
     return fn
 
-def get_distance_fn(body, joints, weights=None): #, norm=2):
+def get_distance_fn(client_id, body, joints, weights=None): #, norm=2):
     # TODO: use the energy resulting from the mass matrix here?
     if weights is None:
         weights = 1*np.ones(len(joints)) # TODO: use velocities here
-    difference_fn = get_difference_fn(body, joints)
+    difference_fn = get_difference_fn(client_id, body, joints)
     def fn(q1, q2):
         diff = np.array(difference_fn(q2, q1))
         return np.sqrt(np.dot(weights, diff * diff))
         #return np.linalg.norm(np.multiply(weights * diff), ord=norm)
     return fn
 
-def get_refine_fn(body, joints, num_steps=0):
-    difference_fn = get_difference_fn(body, joints)
+def get_refine_fn(client_id, body, joints, num_steps=0):
+    difference_fn = get_difference_fn(client_id, body, joints)
     num_steps = num_steps + 1
     def fn(q1, q2):
         q = q1
@@ -89,22 +89,22 @@ def get_refine_fn(body, joints, num_steps=0):
             yield q
     return fn
 
-def refine_path(body, joints, waypoints, num_steps):
-    refine_fn = get_refine_fn(body, joints, num_steps)
+def refine_path(client_id, body, joints, waypoints, num_steps):
+    refine_fn = get_refine_fn(client_id, body, joints, num_steps)
     refined_path = []
     for v1, v2 in zip(waypoints, waypoints[1:]):
         refined_path += list(refine_fn(v1, v2))
     return refined_path
 
-def get_extend_fn(body, joints, resolutions=None, norm=2):
+def get_extend_fn(client_id, body, joints, resolutions=None, norm=2):
     # norm = 1, 2, INF
     if resolutions is None:
         resolutions = DEFAULT_RESOLUTION*np.ones(len(joints))
-    difference_fn = get_difference_fn(body, joints)
+    difference_fn = get_difference_fn(client_id, body, joints)
     def fn(q1, q2):
         #steps = int(np.max(np.abs(np.divide(difference_fn(q2, q1), resolutions))))
         steps = int(np.linalg.norm(np.divide(difference_fn(q2, q1), resolutions), ord=norm))
-        refine_fn = get_refine_fn(body, joints, num_steps=steps)
+        refine_fn = get_refine_fn(client_id, body, joints, num_steps=steps)
         return refine_fn(q1, q2)
     return fn
 
@@ -137,9 +137,9 @@ def waypoints_from_path(path, tolerance=1e-3):
     waypoints.append(last_conf)
     return waypoints
 
-def adjust_path(robot, joints, path):
-    start_positions = get_joint_positions(robot, joints)
-    difference_fn = get_difference_fn(robot, joints)
+def adjust_path(client_id, robot, joints, path):
+    start_positions = get_joint_positions(client_id, robot, joints)
+    difference_fn = get_difference_fn(client_id, robot, joints)
     differences = [difference_fn(q2, q1) for q1, q2 in zip(path, path[1:])]
     adjusted_path = [np.array(start_positions)]
     for difference in differences:
@@ -147,14 +147,14 @@ def adjust_path(robot, joints, path):
     return adjusted_path
 
 
-def plan_waypoints_joint_motion(body, joints, waypoints, start_conf=None, obstacles=[], attachments=[],
+def plan_waypoints_joint_motion(client_id, body, joints, waypoints, start_conf=None, obstacles=[], attachments=[],
                                 self_collisions=True, disabled_collisions=set(),
                                 resolutions=None, custom_limits={}, max_distance=MAX_DISTANCE):
-    extend_fn = get_extend_fn(body, joints, resolutions=resolutions)
-    collision_fn = get_collision_fn(body, joints, obstacles, attachments, self_collisions, disabled_collisions,
+    extend_fn = get_extend_fn(client_id, body, joints, resolutions=resolutions)
+    collision_fn = get_collision_fn(client_id, body, joints, obstacles, attachments, self_collisions, disabled_collisions,
                                     custom_limits=custom_limits, max_distance=max_distance)
     if start_conf is None:
-        start_conf = get_joint_positions(body, joints)
+        start_conf = get_joint_positions(client_id, body, joints)
     else:
         assert len(start_conf) == len(joints)
 
@@ -171,7 +171,7 @@ def plan_waypoints_joint_motion(body, joints, waypoints, start_conf=None, obstac
             path.append(q)
     return path
 
-def plan_direct_joint_motion(body, joints, end_conf, **kwargs):
+def plan_direct_joint_motion(client_id, body, joints, end_conf, **kwargs):
     """plan a joint trajectory connecting the robot's current conf to the end_conf
 
     Parameters
@@ -188,7 +188,7 @@ def plan_direct_joint_motion(body, joints, end_conf, **kwargs):
     [type]
         [description]
     """
-    return plan_waypoints_joint_motion(body, joints, [end_conf], **kwargs)
+    return plan_waypoints_joint_motion(client_id, body, joints, [end_conf], **kwargs)
 
 def check_initial_end(start_conf, end_conf, collision_fn, diagnosis=False):
     if collision_fn(start_conf, diagnosis):
@@ -199,27 +199,27 @@ def check_initial_end(start_conf, end_conf, collision_fn, diagnosis=False):
         return False
     return True
 
-def plan_joint_motion(body, joints, end_conf, obstacles=[], attachments=[],
+def plan_joint_motion(client_id, body, joints, end_conf, obstacles=[], attachments=[],
                       self_collisions=True, disabled_collisions=set(), extra_disabled_collisions=set(),
                       weights=None, resolutions=None, max_distance=MAX_DISTANCE, custom_limits={}, diagnosis=False, **kwargs):
     """call birrt to plan a joint trajectory from the robot's **current** conf to ``end_conf``.
     """
     assert len(joints) == len(end_conf)
-    sample_fn = get_sample_fn(body, joints, custom_limits=custom_limits)
-    distance_fn = get_distance_fn(body, joints, weights=weights)
-    extend_fn = get_extend_fn(body, joints, resolutions=resolutions)
-    collision_fn = get_collision_fn(body, joints, obstacles=obstacles, attachments=attachments, self_collisions=self_collisions,
+    sample_fn = get_sample_fn(client_id, body, joints, custom_limits=custom_limits)
+    distance_fn = get_distance_fn(client_id, body, joints, weights=weights)
+    extend_fn = get_extend_fn(client_id, body, joints, resolutions=resolutions)
+    collision_fn = get_collision_fn(client_id, body, joints, obstacles=obstacles, attachments=attachments, self_collisions=self_collisions,
                                     disabled_collisions=disabled_collisions, extra_disabled_collisions=extra_disabled_collisions,
                                     custom_limits=custom_limits, max_distance=max_distance)
 
-    start_conf = get_joint_positions(body, joints)
+    start_conf = get_joint_positions(client_id, body, joints)
 
     if not check_initial_end(start_conf, end_conf, collision_fn, diagnosis=diagnosis):
         return None
     return birrt(start_conf, end_conf, distance_fn, sample_fn, extend_fn, collision_fn, **kwargs)
     #return plan_lazy_prm(start_conf, end_conf, sample_fn, extend_fn, collision_fn)
 
-def plan_lazy_prm(start_conf, end_conf, sample_fn, extend_fn, collision_fn, **kwargs):
+def plan_lazy_prm(client_id, start_conf, end_conf, sample_fn, extend_fn, collision_fn, **kwargs):
     # TODO: cost metric based on total robot movement (encouraging greater distances possibly)
     path, samples, edges, colliding_vertices, colliding_edges = lazy_prm(
         start_conf, end_conf, sample_fn, extend_fn, collision_fn, num_samples=200, **kwargs)
@@ -232,13 +232,13 @@ def plan_lazy_prm(start_conf, end_conf, sample_fn, extend_fn, collision_fn, **kw
         #return np.array([1, 1, 0.25])*(q + np.array([0., 0., np.pi]))
     handles = []
     for q1, q2 in zip(path, path[1:]):
-        handles.append(add_line(draw_fn(q1), draw_fn(q2), color=(0, 1, 0)))
+        handles.append(add_line(client_id, draw_fn(q1), draw_fn(q2), color=(0, 1, 0)))
     for i1, i2 in edges:
         color = (0, 0, 1)
         if any(colliding_vertices.get(i, False) for i in (i1, i2)) or colliding_vertices.get((i1, i2), False):
             color = (1, 0, 0)
         elif not colliding_vertices.get((i1, i2), True):
             color = (0, 0, 0)
-        handles.append(add_line(draw_fn(samples[i1]), draw_fn(samples[i2]), color=color))
-    wait_for_user()
+        handles.append(add_line(client_id, draw_fn(samples[i1]), draw_fn(samples[i2]), color=color))
+    wait_for_user(client_id)
     return path

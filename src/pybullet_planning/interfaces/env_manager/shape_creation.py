@@ -80,12 +80,12 @@ def get_mesh_geometry(path, scale=1.):
     }
 
 
-def create_collision_shape(geometry, pose=unit_pose()):
+def create_collision_shape(client_id, geometry, pose=unit_pose()):
     point, quat = pose
     collision_args = {
         'collisionFramePosition': point,
         'collisionFrameOrientation': quat,
-        'physicsClientId': CLIENT,
+        'physicsClientId': client_id,
     }
     collision_args.update(geometry)
     if 'length' in collision_args:
@@ -95,7 +95,7 @@ def create_collision_shape(geometry, pose=unit_pose()):
     return p.createCollisionShape(**collision_args)
 
 
-def create_visual_shape(geometry, pose=unit_pose(), color=RED, specular=None):
+def create_visual_shape(client_id, geometry, pose=unit_pose(), color=RED, specular=None):
     if (color is None):  # or not has_gui():
         return NULL_ID
     point, quat = pose
@@ -103,7 +103,7 @@ def create_visual_shape(geometry, pose=unit_pose(), color=RED, specular=None):
         'rgbaColor': color,
         'visualFramePosition': point,
         'visualFrameOrientation': quat,
-        'physicsClientId': CLIENT,
+        'physicsClientId': client_id,
     }
     visual_args.update(geometry)
     if specular is not None:
@@ -111,9 +111,9 @@ def create_visual_shape(geometry, pose=unit_pose(), color=RED, specular=None):
     return p.createVisualShape(**visual_args)
 
 
-def create_shape(geometry, pose=unit_pose(), collision=True, **kwargs):
-    collision_id = create_collision_shape(geometry, pose=pose) if collision else NULL_ID
-    visual_id = create_visual_shape(geometry, pose=pose, **kwargs)
+def create_shape(client_id, geometry, pose=unit_pose(), collision=True, **kwargs):
+    collision_id = create_collision_shape(client_id, geometry, pose=pose) if collision else NULL_ID
+    visual_id = create_visual_shape(client_id, geometry, pose=pose, **kwargs)
     return collision_id, visual_id
 
 
@@ -126,7 +126,7 @@ def plural(word):
     return word + 's'
 
 
-def create_shape_array(geoms, poses, colors=None):
+def create_shape_array(client_id, geoms, poses, colors=None):
     # https://github.com/bulletphysics/bullet3/blob/master/examples/pybullet/pybullet.c
     # createCollisionShape: height
     # createVisualShape: length
@@ -144,7 +144,7 @@ def create_shape_array(geoms, poses, colors=None):
     for (point, quat) in poses:
         collision_args['collisionFramePositions'].append(point)
         collision_args['collisionFrameOrientations'].append(quat)
-    collision_id = p.createCollisionShapeArray(physicsClientId=CLIENT, **collision_args)
+    collision_id = p.createCollisionShapeArray(physicsClientId=client_id, **collision_args)
     if (colors is None):  # or not has_gui():
         return collision_id, NULL_ID
 
@@ -154,18 +154,18 @@ def create_shape_array(geoms, poses, colors=None):
         visual_args['rgbaColors'].append(color)
         visual_args['visualFramePositions'].append(point)
         visual_args['visualFrameOrientations'].append(quat)
-    visual_id = p.createVisualShapeArray(physicsClientId=CLIENT, **visual_args)
+    visual_id = p.createVisualShapeArray(physicsClientId=client_id, **visual_args)
     return collision_id, visual_id
 
 #####################################
 
 
-def create_body(collision_id=NULL_ID, visual_id=NULL_ID, mass=STATIC_MASS):
+def create_body(client_id, collision_id=NULL_ID, visual_id=NULL_ID, mass=STATIC_MASS):
     return p.createMultiBody(baseMass=mass, baseCollisionShapeIndex=collision_id,
-                             baseVisualShapeIndex=visual_id, physicsClientId=CLIENT)
+                             baseVisualShapeIndex=visual_id, physicsClientId=client_id)
 
 
-def create_box(w, l, h, mass=STATIC_MASS, color=RED):
+def create_box(client_id, w, l, h, mass=STATIC_MASS, color=RED):
     """create a box body
 
     .. image:: ../images/box.png
@@ -190,13 +190,13 @@ def create_box(w, l, h, mass=STATIC_MASS, color=RED):
     int
         box body index
     """
-    collision_id, visual_id = create_shape(get_box_geometry(w, l, h), color=color)
-    return create_body(collision_id, visual_id, mass=mass)
+    collision_id, visual_id = create_shape(client_id, get_box_geometry(w, l, h), color=color)
+    return create_body(client_id, collision_id, visual_id, mass=mass)
     # basePosition | baseOrientation
     # linkCollisionShapeIndices | linkVisualShapeIndices
 
 
-def create_cylinder(radius, height, mass=STATIC_MASS, color=BLUE):
+def create_cylinder(client_id, radius, height, mass=STATIC_MASS, color=BLUE):
     """create a cylinder body
 
     .. image:: ../images/cylinder.png
@@ -219,38 +219,38 @@ def create_cylinder(radius, height, mass=STATIC_MASS, color=BLUE):
     [type]
         [description]
     """
-    collision_id, visual_id = create_shape(get_cylinder_geometry(radius, height), color=color)
-    return create_body(collision_id, visual_id, mass=mass)
+    collision_id, visual_id = create_shape(client_id, get_cylinder_geometry(radius, height), color=color)
+    return create_body(client_id, collision_id, visual_id, mass=mass)
 
 
-def create_capsule(radius, height, mass=STATIC_MASS, color=BLUE):
-    collision_id, visual_id = create_shape(get_capsule_geometry(radius, height), color=color)
-    return create_body(collision_id, visual_id, mass=mass)
+def create_capsule(client_id, radius, height, mass=STATIC_MASS, color=BLUE):
+    collision_id, visual_id = create_shape(client_id, get_capsule_geometry(radius, height), color=color)
+    return create_body(client_id, collision_id, visual_id, mass=mass)
 
 
-def create_sphere(radius, mass=STATIC_MASS, color=BLUE):
-    collision_id, visual_id = create_shape(get_sphere_geometry(radius), color=color)
-    return create_body(collision_id, visual_id, mass=mass)
+def create_sphere(client_id, radius, mass=STATIC_MASS, color=BLUE):
+    collision_id, visual_id = create_shape(client_id, get_sphere_geometry(radius), color=color)
+    return create_body(client_id, collision_id, visual_id, mass=mass)
 
 
-def create_plane(normal=[0, 0, 1], mass=STATIC_MASS, color=BLACK):
+def create_plane(client_id, normal=[0, 0, 1], mass=STATIC_MASS, color=BLACK):
     from pybullet_planning.interfaces.robots.body import set_texture, set_color
     # color seems to be ignored in favor of a texture
-    collision_id, visual_id = create_shape(get_plane_geometry(normal), color=color)
-    body = create_body(collision_id, visual_id, mass=mass)
-    set_texture(body, texture=None) # otherwise 'plane.urdf'
-    set_color(body, color=color) # must perform after set_texture
+    collision_id, visual_id = create_shape(client_id, get_plane_geometry(normal), color=color)
+    body = create_body(client_id, collision_id, visual_id, mass=mass)
+    set_texture(client_id, body, texture=None) # otherwise 'plane.urdf'
+    set_color(client_id, body, color=color) # must perform after set_texture
     return body
 
 
-def create_obj(path, scale=1., mass=STATIC_MASS, collision=True, color=GREY):
-    collision_id, visual_id = create_shape(get_mesh_geometry(path, scale=scale), collision=collision, color=color)
-    body = create_body(collision_id, visual_id, mass=mass)
+def create_obj(client_id, path, scale=1., mass=STATIC_MASS, collision=True, color=GREY):
+    collision_id, visual_id = create_shape(client_id, get_mesh_geometry(path, scale=scale), collision=collision, color=color)
+    body = create_body(client_id, collision_id, visual_id, mass=mass)
     fixed_base = (mass == STATIC_MASS)
     INFO_FROM_BODY[CLIENT, body] = ModelInfo(None, path, fixed_base, scale)  # TODO: store geometry info instead?
     return body
 
-def create_flying_body(group, collision_id=NULL_ID, visual_id=NULL_ID, mass=STATIC_MASS):
+def create_flying_body(client_id, group, collision_id=NULL_ID, visual_id=NULL_ID, mass=STATIC_MASS):
     # TODO: more generally clone the body
     indices = list(range(len(group) + 1))
     masses = len(group) * [STATIC_MASS] + [mass]
@@ -287,7 +287,7 @@ def create_flying_body(group, collision_id=NULL_ID, visual_id=NULL_ID, mass=STAT
         linkParentIndices=parents,
         linkJointTypes=types,
         linkJointAxis=axes,
-        physicsClientId=CLIENT,
+        physicsClientId=client_id,
     )
 
 #####################################
@@ -334,8 +334,8 @@ def vertices_from_data(data):
 
 #####################################
 
-def visual_shape_from_data(data, client=None):
-    client = get_client(client)
+def visual_shape_from_data(client_id, data):
+    client = get_client(client_id)
     if (data.visualGeometryType == p.GEOM_MESH) and (data.meshAssetFileName == UNKNOWN_FILE):
         return NULL_ID
     # visualFramePosition: translational offset of the visual shape with respect to the link
@@ -357,31 +357,31 @@ def visual_shape_from_data(data, client=None):
                                physicsClientId=client)
 
 
-def get_visual_data(body, link=BASE_LINK):
-    visual_data = [VisualShapeData(*tup) for tup in p.getVisualShapeData(body, physicsClientId=CLIENT)]
+def get_visual_data(client_id, body, link=BASE_LINK):
+    visual_data = [VisualShapeData(*tup) for tup in p.getVisualShapeData(body, physicsClientId=client_id)]
     return list(filter(lambda d: d.linkIndex == link, visual_data))
 
 
-def clone_visual_shape(body, link, client=None):
-    client = get_client(client)
+def clone_visual_shape(client_id, body, link):
+    client = get_client(client_id)
     # if not has_gui(client):
     #    return NULL_ID
-    visual_data = get_visual_data(body, link)
+    visual_data = get_visual_data(client_id, body, link)
     if not visual_data:
         return NULL_ID
     assert (len(visual_data) == 1)
-    return visual_shape_from_data(visual_data[0], client)
+    return visual_shape_from_data(client_id, visual_data[0])
 
 #####################################
 
-def collision_shape_from_data(data, body, link, client=None):
+def collision_shape_from_data(client_id, data, body, link):
     from pybullet_planning.interfaces.env_manager.pose_transformation import multiply
     from pybullet_planning.interfaces.robots.dynamics import get_joint_inertial_pose
 
-    client = get_client(client)
+    client = get_client(client_id)
     if (data.geometry_type == p.GEOM_MESH) and (data.filename == UNKNOWN_FILE):
         return NULL_ID
-    pose = multiply(get_joint_inertial_pose(body, link), get_data_pose(data))
+    pose = multiply(get_joint_inertial_pose(client_id, body, link), get_data_pose(data))
     point, quat = pose
     # TODO: the visual data seems affected by the collision data
     return p.createCollisionShape(shapeType=data.geometry_type,
@@ -398,21 +398,21 @@ def collision_shape_from_data(data, body, link, client=None):
                                   physicsClientId=client)
     # return p.createCollisionShapeArray()
 
-def clone_collision_shape(body, link, client=None):
+def clone_collision_shape(client_id, body, link):
     from pybullet_planning.interfaces.env_manager.shape_creation import get_collision_data
-    client = get_client(client)
-    collision_data = get_collision_data(body, link)
+    client = get_client(client_id)
+    collision_data = get_collision_data(client, body, link)
     if not collision_data:
         return NULL_ID
     assert (len(collision_data) == 1)
     # TODO: can do CollisionArray
-    return collision_shape_from_data(collision_data[0], body, link, client)
+    return collision_shape_from_data(client, collision_data[0], body, link)
 
 #####################################
 
-def get_collision_data(body, link=BASE_LINK):
+def get_collision_data(client_id, body, link=BASE_LINK):
     # TODO: try catch
-    return [CollisionShapeData(*tup) for tup in p.getCollisionShapeData(body, link, physicsClientId=CLIENT)]
+    return [CollisionShapeData(*tup) for tup in p.getCollisionShapeData(body, link, physicsClientId=client_id)]
 
 def get_data_type(data):
     return data.geometry_type if isinstance(data, CollisionShapeData) else data.visualGeometryType

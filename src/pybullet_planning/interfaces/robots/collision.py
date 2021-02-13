@@ -11,7 +11,7 @@ from pybullet_planning.interfaces.robots.body import get_all_links, get_bodies, 
 
 #####################################
 
-def contact_collision():
+def contact_collision(client_id):
     """run simulation for one step and check if there is a collision
 
     Returns
@@ -20,7 +20,7 @@ def contact_collision():
         True if there is a collision, False otherwise
     """
     step_simulation()
-    return len(p.getContactPoints(physicsClientId=CLIENT)) != 0
+    return len(p.getContactPoints(physicsClientId=client_id)) != 0
 
 
 ContactResult = namedtuple('ContactResult', ['contactFlag', 'bodyUniqueIdA', 'bodyUniqueIdB',
@@ -28,7 +28,7 @@ ContactResult = namedtuple('ContactResult', ['contactFlag', 'bodyUniqueIdA', 'bo
                                          'contactNormalOnB', 'contactDistance', 'normalForce'])
 
 
-def pairwise_link_collision_info(body1, link1, body2, link2=BASE_LINK, max_distance=MAX_DISTANCE): # 10000
+def pairwise_link_collision_info(client_id, body1, link1, body2, link2=BASE_LINK, max_distance=MAX_DISTANCE): # 10000
     """check pairwise collision checking info between bodies
 
     See getClosestPoints in <pybullet documentation `https://docs.google.com/document/d/10sXEhzFRSnvFcl3XxNGhnD4N2SedqwdAvK3dsihxVUA/edit?usp=sharing`>_
@@ -86,9 +86,9 @@ def pairwise_link_collision_info(body1, link1, body2, link2=BASE_LINK, max_dista
     """
     return p.getClosestPoints(bodyA=body1, bodyB=body2, distance=max_distance,
                               linkIndexA=link1, linkIndexB=link2,
-                              physicsClientId=CLIENT)
+                              physicsClientId=client_id)
 
-def pairwise_link_collision(body1, link1, body2, link2=BASE_LINK, max_distance=MAX_DISTANCE):
+def pairwise_link_collision(client_id, body1, link1, body2, link2=BASE_LINK, max_distance=MAX_DISTANCE):
     """check pairwise collision between bodies
 
     See getClosestPoints in <pybullet documentation `https://docs.google.com/document/d/10sXEhzFRSnvFcl3XxNGhnD4N2SedqwdAvK3dsihxVUA/edit?usp=sharing`>_
@@ -113,10 +113,10 @@ def pairwise_link_collision(body1, link1, body2, link2=BASE_LINK, max_distance=M
     Bool
         True if there is a collision, False otherwise
     """
-    return len(pairwise_link_collision_info(body1, link1, body2, link2, max_distance)) != 0
+    return len(pairwise_link_collision_info(client_id, body1, link1, body2, link2, max_distance)) != 0
 
 
-def flatten_links(body, links=None):
+def flatten_links(client_id, body, links=None):
     """util fn to get a list (body, link)
 
     TODO: [Q] what's the use case for this one?
@@ -134,10 +134,10 @@ def flatten_links(body, links=None):
         [description]
     """
     if links is None:
-        links = get_all_links(body)
+        links = get_all_links(client_id, body)
     return {(body, frozenset([link])) for link in links}
 
-def expand_links(body):
+def expand_links(client_id, body):
     """expand all links of a body
 
     TODO: [REFACTOR] move to body or link modules?
@@ -156,10 +156,10 @@ def expand_links(body):
     """
     body, links = body if isinstance(body, tuple) else (body, None)
     if links is None:
-        links = get_all_links(body)
+        links = get_all_links(client_id, body)
     return body, links
 
-def any_link_pair_collision(body1, links1, body2, links2=None, **kwargs):
+def any_link_pair_collision(client_id, body1, links1, body2, links2=None, **kwargs):
     """check collision between two bodies' links
 
     TODO: Caelan : this likely isn't needed anymore
@@ -181,17 +181,17 @@ def any_link_pair_collision(body1, links1, body2, links2=None, **kwargs):
         [description]
     """
     if links1 is None:
-        links1 = get_all_links(body1)
+        links1 = get_all_links(client_id, body1)
     if links2 is None:
-        links2 = get_all_links(body2)
+        links2 = get_all_links(client_id, body2)
     for link1, link2 in product(links1, links2):
         if (body1 == body2) and (link1 == link2):
             continue
-        if pairwise_link_collision(body1, link1, body2, link2, **kwargs):
+        if pairwise_link_collision(client_id, body1, link1, body2, link2, **kwargs):
             return True
     return False
 
-def any_link_pair_collision_info(body1, links1, body2, links2=None, **kwargs):
+def any_link_pair_collision_info(client_id, body1, links1, body2, links2=None, **kwargs):
     """check collision between two bodies' links and return detailed information
 
     Note: for now, this is simply a copy of the original `any_link_pair_collision` function
@@ -215,32 +215,32 @@ def any_link_pair_collision_info(body1, links1, body2, links2=None, **kwargs):
         [description]
     """
     if links1 is None:
-        links1 = get_all_links(body1)
+        links1 = get_all_links(client_id, body1)
     if links2 is None:
-        links2 = get_all_links(body2)
+        links2 = get_all_links(client_id, body2)
     for link1, link2 in product(links1, links2):
         if (body1 == body2) and (link1 == link2):
             continue
-        if pairwise_link_collision(body1, link1, body2, link2, **kwargs):
-            return pairwise_link_collision_info(body1, link1, body2, link2, **kwargs)
+        if pairwise_link_collision(client_id, body1, link1, body2, link2, **kwargs):
+            return pairwise_link_collision_info(client_id, body1, link1, body2, link2, **kwargs)
     return False
 
-def body_collision_info(body1, body2, max_distance=MAX_DISTANCE): # 10000
+def body_collision_info(client_id, body1, body2, max_distance=MAX_DISTANCE): # 10000
     # TODO: confirm that this doesn't just check the base link
     return p.getClosestPoints(bodyA=body1, bodyB=body2, distance=max_distance,
-                              physicsClientId=CLIENT) # getContactPoints`
+                              physicsClientId=client_id) # getContactPoints`
 
-def body_collision(body1, body2, max_distance=MAX_DISTANCE):
-    return len(body_collision_info(body1, body2, max_distance)) != 0
+def body_collision(client_id, body1, body2, max_distance=MAX_DISTANCE):
+    return len(body_collision_info(client_id, body1, body2, max_distance)) != 0
 
-def pairwise_collision(body1, body2, **kwargs):
+def pairwise_collision(client_id, body1, body2, **kwargs):
     if isinstance(body1, tuple) or isinstance(body2, tuple):
-        body1, links1 = expand_links(body1)
-        body2, links2 = expand_links(body2)
-        return any_link_pair_collision(body1, links1, body2, links2, **kwargs)
-    return body_collision(body1, body2, **kwargs)
+        body1, links1 = expand_links(client_id, body1)
+        body2, links2 = expand_links(client_id, body2)
+        return any_link_pair_collision(client_id, body1, links1, body2, links2, **kwargs)
+    return body_collision(client_id, body1, body2, **kwargs)
 
-def pairwise_collision_info(body1, body2, **kwargs):
+def pairwise_collision_info(client_id, body1, body2, **kwargs):
     """[summary]
 
     Note: for now, this is simply a copy of the original `any_link_pair_collision` function
@@ -260,34 +260,34 @@ def pairwise_collision_info(body1, body2, **kwargs):
         [description]
     """
     if isinstance(body1, tuple) or isinstance(body2, tuple):
-        body1, links1 = expand_links(body1)
-        body2, links2 = expand_links(body2)
-        return any_link_pair_collision_info(body1, links1, body2, links2, **kwargs)
-    if body_collision(body1, body2, **kwargs):
-        return body_collision_info(body1, body2, **kwargs)
+        body1, links1 = expand_links(client_id, body1)
+        body2, links2 = expand_links(client_id, body2)
+        return any_link_pair_collision_info(client_id, body1, links1, body2, links2, **kwargs)
+    if body_collision(client_id, body1, body2, **kwargs):
+        return body_collision_info(client_id, body1, body2, **kwargs)
     else:
         return False
 
 #def single_collision(body, max_distance=1e-3):
 #    return len(p.getClosestPoints(body, max_distance=max_distance)) != 0
 
-def single_collision(body1, **kwargs):
-    for body2 in get_bodies():
-        if (body1 != body2) and pairwise_collision(body1, body2, **kwargs):
+def single_collision(client_id, body1, **kwargs):
+    for body2 in get_bodies(client_id):
+        if (body1 != body2) and pairwise_collision(client_id, body1, body2, **kwargs):
             return True
     return False
 
-def link_pairs_collision(body1, links1, body2, links2=None, **kwargs):
+def link_pairs_collision(client_id, body1, links1, body2, links2=None, **kwargs):
     if links2 is None:
-        links2 = get_all_links(body2)
+        links2 = get_all_links(client_id, body2)
     for link1, link2 in product(links1, links2):
         if (body1 == body2) and (link1 == link2):
             continue
-        if pairwise_link_collision(body1, link1, body2, link2, **kwargs):
+        if pairwise_link_collision(client_id, body1, link1, body2, link2, **kwargs):
             return True
     return False
 
-def link_pairs_collision_info(body1, links1, body2, links2=None, **kwargs):
+def link_pairs_collision_info(client_id, body1, links1, body2, links2=None, **kwargs):
     """[summary]
 
     Note: for now, this is simply a copy of the original `any_link_pair_collision` function
@@ -311,15 +311,15 @@ def link_pairs_collision_info(body1, links1, body2, links2=None, **kwargs):
         [description]
     """
     if links2 is None:
-        links2 = get_all_links(body2)
+        links2 = get_all_links(client_id, body2)
     for link1, link2 in product(links1, links2):
         if (body1 == body2) and (link1 == link2):
             continue
-        if pairwise_link_collision(body1, link1, body2, link2, **kwargs):
-            return pairwise_link_collision_info(body1, link1, body2, link2, **kwargs)
+        if pairwise_link_collision(client_id, body1, link1, body2, link2, **kwargs):
+            return pairwise_link_collision_info(client_id, body1, link1, body2, link2, **kwargs)
     return False
 
-def get_collision_fn(body, joints, obstacles=[],
+def get_collision_fn(client_id, body, joints, obstacles=[],
                     attachments=[], self_collisions=True,
                     disabled_collisions={},
                     extra_disabled_collisions={},
@@ -365,11 +365,11 @@ def get_collision_fn(body, joints, obstacles=[],
     from pybullet_planning.interfaces.robots.joint import set_joint_positions, get_custom_limits
     from pybullet_planning.interfaces.robots.link import get_self_link_pairs, get_moving_links
     from pybullet_planning.interfaces.debug_utils.debug_utils import draw_collision_diagnosis
-    moving_links = frozenset(get_moving_links(body, joints))
+    moving_links = frozenset(get_moving_links(client_id, body, joints))
     attached_bodies = [attachment.child for attachment in attachments]
     moving_bodies = [(body, moving_links)] + attached_bodies
     # * main body self-collision link pairs
-    self_check_link_pairs = get_self_link_pairs(body, joints, disabled_collisions) if self_collisions else []
+    self_check_link_pairs = get_self_link_pairs(client_id, body, joints, disabled_collisions) if self_collisions else []
     # * main body link - attachment body pairs
     attach_check_pairs = []
     for attached in attachments:
@@ -386,8 +386,8 @@ def get_collision_fn(body, joints, obstacles=[],
     check_body_pairs = list(product(moving_bodies, obstacles))  # + list(combinations(moving_bodies, 2))
     check_body_link_pairs = []
     for body1, body2 in check_body_pairs:
-        body1, links1 = expand_links(body1)
-        body2, links2 = expand_links(body2)
+        body1, links1 = expand_links(client_id, body1)
+        body2, links2 = expand_links(client_id, body2)
         if body1 == body2:
             continue
         bb_link_pairs = product(links1, links2)
@@ -398,7 +398,7 @@ def get_collision_fn(body, joints, obstacles=[],
     # print('check pairs: ', check_body_link_pairs)
     # print('extra disabled: ', extra_disabled_collisions)
     # * joint limits
-    lower_limits, upper_limits = get_custom_limits(body, joints, custom_limits)
+    lower_limits, upper_limits = get_custom_limits(client_id, body, joints, custom_limits)
 
     # TODO: maybe prune the link adjacent to the robot
     def collision_fn(q, diagnosis=False):
@@ -415,37 +415,37 @@ def get_collision_fn(body, joints, obstacles=[],
                         print('J{}: {} > upper limit {}'.format(i, q[i], upper_limits[i]))
             return True
         # * set body & attachment positions
-        set_joint_positions(body, joints, q)
+        set_joint_positions(client_id, body, joints, q)
         for attachment in attachments:
             attachment.assign()
         # * self-collision link check
         for link1, link2 in self_check_link_pairs:
-            if pairwise_link_collision(body, link1, body, link2):
+            if pairwise_link_collision(client_id, body, link1, body, link2):
                 if diagnosis:
                     warnings.warn('moving body link - moving body link collision!', UserWarning)
-                    cr = pairwise_link_collision_info(body, link1, body, link2)
-                    draw_collision_diagnosis(cr)
+                    cr = pairwise_link_collision_info(client_id, body, link1, body, link2)
+                    draw_collision_diagnosis(client_id, cr)
                 return True
         # * self link - attachment check
         for body_check_links, attached_body in attach_check_pairs:
-            if any_link_pair_collision(body, body_check_links, attached_body, **kwargs):
+            if any_link_pair_collision(client_id, body, body_check_links, attached_body, **kwargs):
                 if diagnosis:
                     warnings.warn('moving body link - attachement collision!', UserWarning)
-                    cr = any_link_pair_collision_info(body, body_check_links, attached_body, **kwargs)
-                    draw_collision_diagnosis(cr)
+                    cr = any_link_pair_collision_info(client_id, body, body_check_links, attached_body, **kwargs)
+                    draw_collision_diagnosis(client_id, cr)
                 return True
         # * body - body check
         for (body1, link1), (body2, link2) in check_body_link_pairs:
-            if pairwise_link_collision(body1, link1, body2, link2, **kwargs):
+            if pairwise_link_collision(client_id, body1, link1, body2, link2, **kwargs):
                 if diagnosis:
                     warnings.warn('moving body - body collision!', UserWarning)
-                    cr = pairwise_link_collision_info(body1, link1, body2, link2)
-                    draw_collision_diagnosis(cr)
+                    cr = pairwise_link_collision_info(client_id, body1, link1, body2, link2)
+                    draw_collision_diagnosis(client_id, cr)
                 return True
         return False
     return collision_fn
 
-def get_floating_body_collision_fn(body, obstacles=[], attachments=[], disabled_collisions={}, **kwargs):
+def get_floating_body_collision_fn(client_id, body, obstacles=[], attachments=[], disabled_collisions={}, **kwargs):
     """get collision checking function collision_fn(joint_values) -> bool for a floating body (no movable joint).
 
     Parameters
@@ -481,8 +481,8 @@ def get_floating_body_collision_fn(body, obstacles=[], attachments=[], disabled_
     check_body_pairs = list(product(moving_bodies, obstacles))  # + list(combinations(moving_bodies, 2))
     check_body_link_pairs = []
     for body1, body2 in check_body_pairs:
-        body1, links1 = expand_links(body1)
-        body2, links2 = expand_links(body2)
+        body1, links1 = expand_links(client_id, body1)
+        body2, links2 = expand_links(client_id, body2)
         bb_link_pairs = product(links1, links2)
         for bb_links in bb_link_pairs:
             bbll_pair = ((body1, bb_links[0]), (body2, bb_links[1]))
@@ -490,14 +490,14 @@ def get_floating_body_collision_fn(body, obstacles=[], attachments=[], disabled_
                 check_body_link_pairs.append(bbll_pair)
 
     def collision_fn(pose, diagnosis=False):
-        set_pose(body, pose)
+        set_pose(client_id, body, pose)
         # * body - body check
         for (body1, link1), (body2, link2) in check_body_link_pairs:
-            if pairwise_link_collision(body1, link1, body2, link2, **kwargs):
+            if pairwise_link_collision(client_id, body1, link1, body2, link2, **kwargs):
                 if diagnosis:
                     warnings.warn('moving body - body collision!', UserWarning)
-                    cr = pairwise_link_collision_info(body1, link1, body2, link2)
-                    draw_collision_diagnosis(cr)
+                    cr = pairwise_link_collision_info(client_id, body1, link1, body2, link2)
+                    draw_collision_diagnosis(client_id, cr)
                 return True
         return False
     return collision_fn
@@ -513,15 +513,15 @@ def get_ray(ray):
 RayResult = namedtuple('RayResult', ['objectUniqueId', 'linkIndex',
                                      'hit_fraction', 'hit_position', 'hit_normal'])
 
-def ray_collision(ray):
+def ray_collision(client_id, ray):
     # TODO: be careful to disable gravity and set static masses for everything
     step_simulation() # Needed for some reason
     start, end = ray
-    result, = p.rayTest(start, end, physicsClientId=CLIENT)
+    result, = p.rayTest(start, end, physicsClientId=client_id)
     # TODO: assign hit_position to be the end?
     return RayResult(*result)
 
-def batch_ray_collision(rays, threads=1):
+def batch_ray_collision(client_id, rays, threads=1):
     assert 1 <= threads <= p.MAX_RAY_INTERSECTION_BATCH_SIZE
     if not rays:
         return []
@@ -533,4 +533,4 @@ def batch_ray_collision(rays, threads=1):
         numThreads=threads,
         #parentObjectUniqueId=
         #parentLinkIndex=
-        physicsClientId=CLIENT)]
+        physicsClientId=client_id)]

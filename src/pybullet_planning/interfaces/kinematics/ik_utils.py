@@ -4,7 +4,7 @@ import pybullet as p
 
 from pybullet_planning.utils import CLIENT
 
-def inverse_kinematics_helper(robot, link, target_pose, null_space=None):
+def inverse_kinematics_helper(client_id, robot, link, target_pose, null_space=None):
     (target_point, target_quat) = target_pose
     assert target_point is not None
     if null_space is not None:
@@ -13,15 +13,15 @@ def inverse_kinematics_helper(robot, link, target_pose, null_space=None):
 
         kinematic_conf = p.calculateInverseKinematics(robot, link, target_point,
                                                       lowerLimits=lower, upperLimits=upper, jointRanges=ranges, restPoses=rest,
-                                                      physicsClientId=CLIENT)
+                                                      physicsClientId=client_id)
     elif target_quat is None:
         #ikSolver = p.IK_DLS or p.IK_SDLS
         kinematic_conf = p.calculateInverseKinematics(robot, link, target_point,
                                                       #lowerLimits=ll, upperLimits=ul, jointRanges=jr, restPoses=rp, jointDamping=jd,
                                                       # solver=ikSolver, maxNumIterations=-1, residualThreshold=-1,
-                                                      physicsClientId=CLIENT)
+                                                      physicsClientId=client_id)
     else:
-        kinematic_conf = p.calculateInverseKinematics(robot, link, target_point, target_quat, physicsClientId=CLIENT)
+        kinematic_conf = p.calculateInverseKinematics(robot, link, target_point, target_quat, physicsClientId=client_id)
     if (kinematic_conf is None) or any(map(math.isnan, kinematic_conf)):
         return None
     return kinematic_conf
@@ -36,23 +36,23 @@ def is_pose_close(pose, target_pose, pos_tolerance=1e-3, ori_tolerance=1e-3*np.p
         return False
     return True
 
-def inverse_kinematics(robot, link, target_pose, max_iterations=200, custom_limits={}, **kwargs):
+def inverse_kinematics(client_id, robot, link, target_pose, max_iterations=200, custom_limits={}, **kwargs):
     from pybullet_planning.interfaces.env_manager.pose_transformation import all_between
     from pybullet_planning.interfaces.robots import get_movable_joints, set_joint_positions, get_link_pose, get_custom_limits
 
-    movable_joints = get_movable_joints(robot)
+    movable_joints = get_movable_joints(client_id, robot)
     for iterations in range(max_iterations):
         # TODO: stop is no progress
         # TODO: stop if collision or invalid joint limits
-        kinematic_conf = inverse_kinematics_helper(robot, link, target_pose)
+        kinematic_conf = inverse_kinematics_helper(client_id, robot, link, target_pose)
         if kinematic_conf is None:
             return None
-        set_joint_positions(robot, movable_joints, kinematic_conf)
-        if is_pose_close(get_link_pose(robot, link), target_pose, **kwargs):
+        set_joint_positions(client_id, robot, movable_joints, kinematic_conf)
+        if is_pose_close(get_link_pose(client_id, robot, link), target_pose, **kwargs):
             break
     else:
         return None
-    lower_limits, upper_limits = get_custom_limits(robot, movable_joints, custom_limits)
+    lower_limits, upper_limits = get_custom_limits(client_id, robot, movable_joints, custom_limits)
     if not all_between(lower_limits, kinematic_conf, upper_limits):
         return None
     return kinematic_conf

@@ -36,19 +36,19 @@ from pybullet_planning.interfaces.env_manager.shape_creation import ModelInfo, c
 #         return '{}({})'.format(self.__class__.__name__, len(self.bodies))
 
 
-def disable_viewer():
-    p.configureDebugVisualizer(p.COV_ENABLE_GUI, False, physicsClientId=CLIENT)
-    p.configureDebugVisualizer(p.COV_ENABLE_SEGMENTATION_MARK_PREVIEW, False, physicsClientId=CLIENT)
-    p.configureDebugVisualizer(p.COV_ENABLE_DEPTH_BUFFER_PREVIEW, False, physicsClientId=CLIENT)
-    p.configureDebugVisualizer(p.COV_ENABLE_RGB_BUFFER_PREVIEW, False, physicsClientId=CLIENT)
-    #p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, False, physicsClientId=CLIENT)
-    #p.configureDebugVisualizer(p.COV_ENABLE_SINGLE_STEP_RENDERING, True, physicsClientId=CLIENT)
-    #p.configureDebugVisualizer(p.COV_ENABLE_SHADOWS, False, physicsClientId=CLIENT)
-    #p.configureDebugVisualizer(p.COV_ENABLE_WIREFRAME, True, physicsClientId=CLIENT)
+def disable_viewer(client_id):
+    p.configureDebugVisualizer(p.COV_ENABLE_GUI, False, physicsClientId=client_id)
+    p.configureDebugVisualizer(p.COV_ENABLE_SEGMENTATION_MARK_PREVIEW, False, physicsClientId=client_id)
+    p.configureDebugVisualizer(p.COV_ENABLE_DEPTH_BUFFER_PREVIEW, False, physicsClientId=client_id)
+    p.configureDebugVisualizer(p.COV_ENABLE_RGB_BUFFER_PREVIEW, False, physicsClientId=client_id)
+    #p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, False, physicsClientId=client_id)
+    #p.configureDebugVisualizer(p.COV_ENABLE_SINGLE_STEP_RENDERING, True, physicsClientId=client_id)
+    #p.configureDebugVisualizer(p.COV_ENABLE_SHADOWS, False, physicsClientId=client_id)
+    #p.configureDebugVisualizer(p.COV_ENABLE_WIREFRAME, True, physicsClientId=client_id)
     #p.COV_ENABLE_MOUSE_PICKING, p.COV_ENABLE_KEYBOARD_SHORTCUTS
 
-def set_renderer(enable):
-    client = CLIENT
+def set_renderer(client_id, enable):
+    client = client_id
     if not has_gui(client):
         return
     CLIENTS[client] = enable
@@ -56,19 +56,19 @@ def set_renderer(enable):
 
 class LockRenderer(Saver):
     # disabling rendering temporary makes adding objects faster
-    def __init__(self, lock=True):
-        self.client = CLIENT
-        self.state = CLIENTS[self.client]
+    def __init__(self, client_id, lock=True):
+        self._client_id = client_id
+        self.state = CLIENTS[self._client_id]
         # skip if the visualizer isn't active
-        if has_gui(self.client) and lock:
-            set_renderer(enable=False)
+        if has_gui(self._client_id) and lock:
+            set_renderer(self._client_id, enable=False)
 
     def restore(self):
-        if not has_gui(self.client):
+        if not has_gui(self._client_id):
             return
         assert self.state is not None
-        if self.state != CLIENTS[self.client]:
-           set_renderer(enable=self.state)
+        if self.state != CLIENTS[self._client_id]:
+           set_renderer(self._client_id, enable=self.state)
 
 
 def connect(use_gui=True, shadows=True, color=None, width=None, height=None):
@@ -124,21 +124,21 @@ def connect(use_gui=True, shadows=True, color=None, width=None, height=None):
     return sim_id
 
 
-def disconnect():
+def disconnect(client_id):
     # TODO: change CLIENT?
     if CLIENT in CLIENTS:
         del CLIENTS[CLIENT]
     with HideOutput():
-        return p.disconnect(physicsClientId=CLIENT)
+        return p.disconnect(physicsClientId=client_id)
 
-def is_connected():
-    return p.getConnectionInfo(physicsClientId=CLIENT)['isConnected']
+def is_connected(client_id):
+    return p.getConnectionInfo(physicsClientId=client_id)['isConnected']
 
-def get_connection(client=None):
-    return p.getConnectionInfo(physicsClientId=get_client(client))['connectionMethod']
+def get_connection(client_id):
+    return p.getConnectionInfo(physicsClientId=get_client(client_id))['connectionMethod']
 
-def has_gui(client=None):
-    return get_connection(get_client(client)) == p.GUI
+def has_gui(client_id):
+    return get_connection(get_client(client_id)) == p.GUI
 
 def get_data_path():
     import pybullet_data
@@ -150,24 +150,24 @@ def add_data_path(data_path=None):
     p.setAdditionalSearchPath(data_path)
     return data_path
 
-def enable_gravity():
-    p.setGravity(0, 0, -GRAVITY, physicsClientId=CLIENT)
+def enable_gravity(client_id):
+    p.setGravity(0, 0, -GRAVITY, physicsClientId=client_id)
 
-def disable_gravity():
-    p.setGravity(0, 0, 0, physicsClientId=CLIENT)
+def disable_gravity(client_id):
+    p.setGravity(0, 0, 0, physicsClientId=client_id)
 
-def set_real_time(real_time):
-    p.setRealTimeSimulation(int(real_time), physicsClientId=CLIENT)
+def set_real_time(client_id, real_time):
+    p.setRealTimeSimulation(int(real_time), physicsClientId=client_id)
 
-def enable_real_time():
-    set_real_time(True)
+def enable_real_time(client_id):
+    set_real_time(client_id, True)
 
-def disable_real_time():
-    set_real_time(False)
+def disable_real_time(client_id):
+    set_real_time(client_id, False)
 
-def update_state():
+def update_state(client_id):
     # TODO: this doesn't seem to automatically update still
-    disable_gravity()
+    disable_gravity(client_id)
     #step_simulation()
     #for body in get_bodies():
     #    for link in get_links(body):
@@ -181,47 +181,47 @@ def update_state():
     #p.getKeyboardEvents()
     #p.getMouseEvents()
 
-def reset_simulation():
+def reset_simulation(client_id):
     """resetSimulation will remove all objects from the world and reset the world to initial conditions.
     """
-    p.resetSimulation(physicsClientId=CLIENT)
+    p.resetSimulation(physicsClientId=client_id)
 
 #####################################
 
 # Simulation
 
-def load_pybullet(filename, fixed_base=False, scale=1., **kwargs):
+def load_pybullet(client_id, filename, fixed_base=False, scale=1., **kwargs):
     # fixed_base=False implies infinite base mass
-    with LockRenderer():
+    with LockRenderer(client_id):
         if filename.endswith('.urdf'):
             flags = get_urdf_flags(**kwargs)
             body = p.loadURDF(filename, useFixedBase=fixed_base, flags=flags,
-                              globalScaling=scale, physicsClientId=CLIENT)
+                              globalScaling=scale, physicsClientId=client_id)
         elif filename.endswith('.sdf'):
-            body = p.loadSDF(filename, physicsClientId=CLIENT)
+            body = p.loadSDF(filename, physicsClientId=client_id)
         elif filename.endswith('.xml'):
-            body = p.loadMJCF(filename, physicsClientId=CLIENT)
+            body = p.loadMJCF(filename, physicsClientId=client_id)
         elif filename.endswith('.bullet'):
-            body = p.loadBullet(filename, physicsClientId=CLIENT)
+            body = p.loadBullet(filename, physicsClientId=client_id)
         elif filename.endswith('.obj'):
             # TODO: fixed_base => mass = 0?
-            body = create_obj(filename, scale=scale, **kwargs)
+            body = create_obj(client_id, filename, scale=scale, **kwargs)
         else:
             raise ValueError(filename)
     INFO_FROM_BODY[CLIENT, body] = ModelInfo(None, filename, fixed_base, scale)
     return body
 
-def set_caching(cache):
-    p.setPhysicsEngineParameter(enableFileCaching=int(cache), physicsClientId=CLIENT)
+def set_caching(client_id, cache):
+    p.setPhysicsEngineParameter(enableFileCaching=int(cache), physicsClientId=client_id)
 
-def load_model_info(info):
+def load_model_info(client_id, info):
     # TODO: disable file caching to reuse old filenames
-    # p.setPhysicsEngineParameter(enableFileCaching=0, physicsClientId=CLIENT)
+    # p.setPhysicsEngineParameter(enableFileCaching=0, physicsClientId=client_id)
     if info.path.endswith('.urdf'):
-        return load_pybullet(info.path, fixed_base=info.fixed_base, scale=info.scale)
+        return load_pybullet(client_id, info.path, fixed_base=info.fixed_base, scale=info.scale)
     if info.path.endswith('.obj'):
         mass = STATIC_MASS if info.fixed_base else 1.
-        return create_obj(info.path, mass=mass, scale=info.scale)
+        return create_obj(client_id, info.path, mass=mass, scale=info.scale)
     raise NotImplementedError(info.path)
 
 URDF_FLAGS = [p.URDF_USE_INERTIA_FROM_FILE,
@@ -233,14 +233,14 @@ def get_model_path(rel_path): # TODO: add to search path
     directory = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(directory, '..', rel_path)
 
-def save_state():
-    return p.saveState(physicsClientId=CLIENT)
+def save_state(client_id):
+    return p.saveState(physicsClientId=client_id)
 
-def restore_state(state_id):
-    p.restoreState(stateId=state_id, physicsClientId=CLIENT)
+def restore_state(client_id, state_id):
+    p.restoreState(stateId=state_id, physicsClientId=client_id)
 
-def save_bullet(filename):
-    p.saveBullet(filename, physicsClientId=CLIENT)
+def save_bullet(client_id, filename):
+    p.saveBullet(filename, physicsClientId=client_id)
 
-def restore_bullet(filename):
-    p.restoreState(fileName=filename, physicsClientId=CLIENT)
+def restore_bullet(client_id, filename):
+    p.restoreState(fileName=filename, physicsClientId=client_id)

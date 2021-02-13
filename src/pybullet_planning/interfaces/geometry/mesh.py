@@ -12,7 +12,7 @@ from pybullet_planning.utils import ensure_dir, write, read, safe_zip
 Mesh = namedtuple('Mesh', ['vertices', 'faces'])
 mesh_count = count()
 
-def create_mesh(mesh, under=True, **kwargs):
+def create_mesh(client_id, mesh, under=True, **kwargs):
     # http://people.sc.fsu.edu/~jburkardt/data/obj/obj.html
     # TODO: read OFF / WRL / OBJ files
     # TODO: maintain dict to file
@@ -20,7 +20,7 @@ def create_mesh(mesh, under=True, **kwargs):
     ensure_dir(TEMP_DIR)
     path = os.path.join(TEMP_DIR, 'mesh{}.obj'.format(next(mesh_count)))
     write(path, obj_file_from_mesh(mesh, under=under))
-    return create_obj(path, **kwargs)
+    return create_obj(client_id, path, **kwargs)
     #safe_remove(path) # TODO: removing might delete mesh?
 
 def obj_file_from_mesh(mesh, under=True):

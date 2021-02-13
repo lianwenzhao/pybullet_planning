@@ -13,23 +13,23 @@ DynamicsInfo = namedtuple('DynamicsInfo', ['mass', 'lateral_friction',
                                            'restitution', 'rolling_friction', 'spinning_friction',
                                            'contact_damping', 'contact_stiffness', 'body_type', 'collision_margin'])
 
-def get_dynamics_info(body, link=BASE_LINK):
-    return DynamicsInfo(*p.getDynamicsInfo(body, link, physicsClientId=CLIENT))
+def get_dynamics_info(client_id, body, link=BASE_LINK):
+    return DynamicsInfo(*p.getDynamicsInfo(body, link, physicsClientId=client_id))
 
 get_link_info = get_dynamics_info
 
-def get_mass(body, link=BASE_LINK):
+def get_mass(client_id, body, link=BASE_LINK):
     # TOOD: get full mass
-    return get_dynamics_info(body, link).mass
+    return get_dynamics_info(client_id, body, link).mass
 
-def set_dynamics(body, link=BASE_LINK, **kwargs):
+def set_dynamics(client_id, body, link=BASE_LINK, **kwargs):
     # TODO: iterate over all links
-    p.changeDynamics(body, link, physicsClientId=CLIENT, **kwargs)
+    p.changeDynamics(body, link, physicsClientId=client_id, **kwargs)
 
-def set_mass(body, mass, link=BASE_LINK):
-    set_dynamics(body, link=link, mass=mass)
+def set_mass(client_id, body, mass, link=BASE_LINK):
+    set_dynamics(client_id, body, link=link, mass=mass)
 
-def set_static(body):
+def set_static(client_id, body):
     """set all the body's links to be static (infinite mass, doesn't move under gravity)
 
     Parameters
@@ -38,36 +38,36 @@ def set_static(body):
         [description]
     """
     from pybullet_planning.interfaces.robots.link import get_all_links
-    for link in get_all_links(body):
-        set_mass(body, mass=STATIC_MASS, link=link)
+    for link in get_all_links(client_id, body):
+        set_mass(client_id, body, mass=STATIC_MASS, link=link)
 
-def set_all_static():
+def set_all_static(client_id):
     from pybullet_planning.interfaces.env_manager.simulation import disable_gravity
     from pybullet_planning.interfaces.robots.body import get_bodies
     # TODO: mass saver
-    disable_gravity()
-    for body in get_bodies():
-        set_static(body)
+    disable_gravity(client_id)
+    for body in get_bodies(client_id):
+        set_static(client_id, body)
 
-def get_joint_inertial_pose(body, joint):
-    dynamics_info = get_dynamics_info(body, joint)
+def get_joint_inertial_pose(client_id, body, joint):
+    dynamics_info = get_dynamics_info(client_id, body, joint)
     return dynamics_info.local_inertial_pos, dynamics_info.local_inertial_orn
 
-def get_local_link_pose(body, joint):
+def get_local_link_pose(client_id, body, joint):
     from pybullet_planning.interfaces.env_manager.pose_transformation import Pose, multiply, invert
     from pybullet_planning.interfaces.robots.joint import get_joint_parent_frame
     from pybullet_planning.interfaces.robots.link import parent_link_from_joint
 
-    parent_joint = parent_link_from_joint(body, joint)
+    parent_joint = parent_link_from_joint(client_id, body, joint)
     #world_child = get_link_pose(body, joint)
     #world_parent = get_link_pose(body, parent_joint)
     ##return multiply(invert(world_parent), world_child)
     #return multiply(world_child, invert(world_parent))
 
     # https://github.com/bulletphysics/bullet3/blob/9c9ac6cba8118544808889664326fd6f06d9eeba/examples/pybullet/gym/pybullet_utils/urdfEditor.py#L169
-    parent_com = get_joint_parent_frame(body, joint)
-    tmp_pose = invert(multiply(get_joint_inertial_pose(body, joint), parent_com))
-    parent_inertia = get_joint_inertial_pose(body, parent_joint)
+    parent_com = get_joint_parent_frame(client_id, body, joint)
+    tmp_pose = invert(multiply(get_joint_inertial_pose(client_id, body, joint), parent_com))
+    parent_inertia = get_joint_inertial_pose(client_id, body, parent_joint)
     #return multiply(parent_inertia, tmp_pose) # TODO: why is this wrong...
     _, orn = multiply(parent_inertia, tmp_pose)
     pos, _ = multiply(parent_inertia, Pose(parent_com[0]))

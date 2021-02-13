@@ -29,7 +29,7 @@ class ClientSaver(Saver):
         return '{}({})'.format(self.__class__.__name__, self.client)
 
 class VideoSaver(Saver):
-    def __init__(self, path):
+    def __init__(self, client_id, path):
         self.path = path
         if path is None:
             self.log_id = None
@@ -38,7 +38,7 @@ class VideoSaver(Saver):
             assert ext == '.mp4'
             # STATE_LOGGING_PROFILE_TIMINGS, STATE_LOGGING_ALL_COMMANDS
             # p.submitProfileTiming("pythontest")
-            self.log_id = p.startStateLogging(p.STATE_LOGGING_VIDEO_MP4, fileName=path, physicsClientId=CLIENT)
+            self.log_id = p.startStateLogging(p.STATE_LOGGING_VIDEO_MP4, fileName=path, physicsClientId=client_id)
 
     def restore(self):
         if self.log_id is not None:
@@ -47,28 +47,30 @@ class VideoSaver(Saver):
 #####################################
 
 class ConfSaver(Saver):
-    def __init__(self, body): #, joints):
+    def __init__(self, client_id, body): #, joints):
         from pybullet_planning.interfaces.robots.joint import get_configuration
+        self.client_id = client_id
         self.body = body
-        self.conf = get_configuration(body)
+        self.conf = get_configuration(client_id, body)
 
     def apply_mapping(self, mapping):
         self.body = mapping.get(self.body, self.body)
 
     def restore(self):
         from pybullet_planning.interfaces.robots.joint import set_configuration
-        set_configuration(self.body, self.conf)
+        set_configuration(self.client_id, self.body, self.conf)
 
     def __repr__(self):
         return '{}({})'.format(self.__class__.__name__, self.body)
 
 class BodySaver(Saver):
-    def __init__(self, body): #, pose=None):
+    def __init__(self, client_id, body): #, pose=None):
         #if pose is None:
         #    pose = get_pose(body)
+        self.client_id = client_id
         self.body = body
-        self.pose_saver = PoseSaver(body)
-        self.conf_saver = ConfSaver(body)
+        self.pose_saver = PoseSaver(client_id, body)
+        self.conf_saver = ConfSaver(client_id, body)
         self.savers = [self.pose_saver, self.conf_saver]
         # TODO: store velocities
 
@@ -84,9 +86,9 @@ class BodySaver(Saver):
         return '{}({})'.format(self.__class__.__name__, self.body)
 
 class WorldSaver(Saver):
-    def __init__(self):
+    def __init__(self, client_id):
         from pybullet_planning.interfaces.robots.body import get_bodies
-        self.body_savers = [BodySaver(body) for body in get_bodies()]
+        self.body_savers = [BodySaver(client_id, body) for body in get_bodies(client_id)]
         # TODO: add/remove new bodies
 
     def restore(self):
@@ -94,19 +96,20 @@ class WorldSaver(Saver):
             body_saver.restore()
 
 class PoseSaver(Saver):
-    def __init__(self, body):
+    def __init__(self, client_id, body):
         from pybullet_planning.interfaces.robots.body import get_pose, get_velocity
         self.body = body
-        self.pose = get_pose(self.body)
-        self.velocity = get_velocity(self.body)
+        self.client_id = client_id
+        self.pose = get_pose(client_id, self.body)
+        self.velocity = get_velocity(client_id, self.body)
 
     def apply_mapping(self, mapping):
         self.body = mapping.get(self.body, self.body)
 
     def restore(self):
         from pybullet_planning.interfaces.robots.body import set_pose, set_velocity
-        set_pose(self.body, self.pose)
-        set_velocity(self.body, *self.velocity)
+        set_pose(self.client_id, self.body, self.pose)
+        set_velocity(self.client_id, self.body, *self.velocity)
 
     def __repr__(self):
         return '{}({})'.format(self.__class__.__name__, self.body)

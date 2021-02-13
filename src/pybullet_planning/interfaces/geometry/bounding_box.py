@@ -32,15 +32,15 @@ def aabb_overlap(aabb1, aabb2):
 #####################################
 # Bounding box from body
 
-def get_subtree_aabb(body, root_link=BASE_LINK):
+def get_subtree_aabb(client_id, body, root_link=BASE_LINK):
     from pybullet_planning.interfaces.robots.link import get_link_subtree
-    return aabb_union(get_aabb(body, link) for link in get_link_subtree(body, root_link))
+    return aabb_union(get_aabb(client_id, body, link) for link in get_link_subtree(client_id, body, root_link))
 
-def get_aabbs(body):
+def get_aabbs(client_id, body):
     from pybullet_planning.interfaces.robots.link import get_all_links
-    return [get_aabb(body, link=link) for link in get_all_links(body)]
+    return [get_aabb(client_id, body, link=link) for link in get_all_links(client_id, body)]
 
-def get_aabb(body, link=None):
+def get_aabb(client_id, body, link=None):
     # Note that the query is conservative and may return additional objects that don't have actual AABB overlap.
     # This happens because the acceleration structures have some heuristic that enlarges the AABBs a bit
     # (extra margin and extruded along the velocity vector).
@@ -48,9 +48,9 @@ def get_aabb(body, link=None):
     # AABBs are extended by this number. Defaults to 0.02 in Bullet 2.x
     #p.setPhysicsEngineParameter(contactBreakingThreshold=0.0, physicsClientId=CLIENT)
     if link is None:
-        aabb = aabb_union(get_aabbs(body))
+        aabb = aabb_union(get_aabbs(client_id, body))
     else:
-        aabb = p.getAABB(body, linkIndex=link, physicsClientId=CLIENT)
+        aabb = p.getAABB(body, linkIndex=link, physicsClientId=client_id)
     return aabb
 
 get_lower_upper = get_aabb
@@ -75,8 +75,8 @@ def get_aabb_extent(aabb):
     lower, upper = aabb
     return np.array(upper) - np.array(lower)
 
-def get_center_extent(body, **kwargs):
-    aabb = get_aabb(body, **kwargs)
+def get_center_extent(client_id, body, **kwargs):
+    aabb = get_aabb(client_id, body, **kwargs)
     return get_aabb_center(aabb), get_aabb_extent(aabb)
 
 def aabb2d_from_aabb(aabb):
@@ -96,7 +96,7 @@ def aabb_contains_point(point, container):
            np.less_equal(point, upper).all()
     #return np.all(lower <= point) and np.all(point <= upper)
 
-def get_bodies_in_region(aabb):
+def get_bodies_in_region(client_id, aabb):
     """This query will return all the unique ids of objects that have axis aligned bounding box overlap with a given axis aligned bounding box.
 
     Note that the query is conservative and may return additional objects that don't have actual AABB overlap.
@@ -113,7 +113,7 @@ def get_bodies_in_region(aabb):
     a list of object unique ids.
     """
     (lower, upper) = aabb
-    bodies = p.getOverlappingObjects(lower, upper, physicsClientId=CLIENT)
+    bodies = p.getOverlappingObjects(lower, upper, physicsClientId=client_id)
     return [] if bodies is None else bodies
 
 def get_aabb_volume(aabb):

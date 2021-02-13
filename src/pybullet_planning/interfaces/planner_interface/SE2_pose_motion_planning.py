@@ -21,7 +21,7 @@ def get_base_distance_fn(weights=1*np.ones(3)):
         return np.sqrt(np.dot(weights, difference * difference))
     return fn
 
-def plan_base_motion(body, end_conf, base_limits, obstacles=[], direct=False,
+def plan_base_motion(client_id, body, end_conf, base_limits, obstacles=[], direct=False,
                      weights=1*np.ones(3), resolutions=0.05*np.ones(3),
                      max_distance=MAX_DISTANCE, **kwargs):
     from pybullet_planning.interfaces.robots.collision import pairwise_collision
@@ -46,10 +46,10 @@ def plan_base_motion(body, end_conf, base_limits, obstacles=[], direct=False,
 
     def collision_fn(q):
         # TODO: update this function
-        set_base_values(body, q)
-        return any(pairwise_collision(body, obs, max_distance=max_distance) for obs in obstacles)
+        set_base_values(client_id, body, q)
+        return any(pairwise_collision(client_id, body, obs, max_distance=max_distance) for obs in obstacles)
 
-    start_conf = get_base_values(body)
+    start_conf = get_base_values(client_id, body)
     if collision_fn(start_conf):
         print("Warning: initial configuration is in collision")
         return None

@@ -8,11 +8,11 @@ from pybullet_planning.utils import CLIENT
 CameraInfo = namedtuple('CameraInfo', ['width', 'height', 'viewMatrix', 'projectionMatrix', 'cameraUp', 'cameraForward',
                                        'horizontal', 'vertical', 'yaw', 'pitch', 'dist', 'target'])
 
-def get_camera():
-    return CameraInfo(*p.getDebugVisualizerCamera(physicsClientId=CLIENT))
+def get_camera(client_id):
+    return CameraInfo(*p.getDebugVisualizerCamera(physicsClientId=client_id))
 
-def set_camera(yaw, pitch, distance, target_position=np.zeros(3)):
-    p.resetDebugVisualizerCamera(distance, yaw, pitch, target_position, physicsClientId=CLIENT)
+def set_camera(client_id, yaw, pitch, distance, target_position=np.zeros(3)):
+    p.resetDebugVisualizerCamera(distance, yaw, pitch, target_position, physicsClientId=client_id)
 
 def get_pitch(point):
     dx, dy, dz = point
@@ -22,20 +22,20 @@ def get_yaw(point):
     dx, dy, dz = point
     return np.math.atan2(dy, dx)
 
-def set_camera_pose(camera_point, target_point=np.zeros(3)):
+def set_camera_pose(client_id, camera_point, target_point=np.zeros(3)):
     delta_point = np.array(target_point) - np.array(camera_point)
     distance = np.linalg.norm(delta_point)
     yaw = get_yaw(delta_point) - np.pi/2 # TODO: hack
     pitch = get_pitch(delta_point)
     p.resetDebugVisualizerCamera(distance, math.degrees(yaw), math.degrees(pitch),
-                                 target_point, physicsClientId=CLIENT)
+                                 target_point, physicsClientId=client_id)
 
-def set_camera_pose2(world_from_camera, distance=2):
+def set_camera_pose2(client_id, world_from_camera, distance=2):
     from pybullet_planning.interfaces.env_manager.pose_transformation import tform_point, point_from_pose
     target_camera = np.array([0, 0, distance])
     target_world = tform_point(world_from_camera, target_camera)
     camera_world = point_from_pose(world_from_camera)
-    set_camera_pose(camera_world, target_world)
+    set_camera_pose(client_id, camera_world, target_world)
     #roll, pitch, yaw = euler_from_quat(quat_from_pose(world_from_camera))
     # TODO: assert that roll is about zero?
     #p.resetDebugVisualizerCamera(cameraDistance=distance, cameraYaw=math.degrees(yaw), cameraPitch=math.degrees(-pitch),
@@ -64,7 +64,7 @@ def save_image(filename, rgba):
         raise ValueError(filename)
     print('Saved image at {}'.format(filename))
 
-def get_projection_matrix(width, height, vertical_fov, near, far):
+def get_projection_matrix(client_id, width, height, vertical_fov, near, far):
     """
     OpenGL projection matrix
     :param width:
@@ -82,7 +82,7 @@ def get_projection_matrix(width, height, vertical_fov, near, far):
     aspect = float(width) / height
     fov_degrees = math.degrees(vertical_fov)
     projection_matrix = p.computeProjectionMatrixFOV(fov=fov_degrees, aspect=aspect,
-                                                     nearVal=near, farVal=far, physicsClientId=CLIENT)
+                                                     nearVal=near, farVal=far, physicsClientId=client_id)
     # projection_matrix = p.computeProjectionMatrix(0, width, height, 0, near, far, physicsClientId=CLIENT)
     return projection_matrix
     #return np.reshape(projection_matrix, [4, 4])
@@ -94,10 +94,10 @@ def spaced_colors(n, s=1, v=1):
     import colorsys
     return [colorsys.hsv_to_rgb(h, s, v) for h in np.linspace(0, 1, n, endpoint=False)]
 
-def image_from_segmented(segmented, color_from_body=None):
+def image_from_segmented(client_id, segmented, color_from_body=None):
     if color_from_body is None:
         from pybullet_planning.interfaces.robots.body import get_bodies
-        bodies = get_bodies()
+        bodies = get_bodies(client_id)
         color_from_body = dict(zip(bodies, spaced_colors(len(bodies))))
     image = np.zeros(segmented.shape[:2] + (3,))
     for r in range(segmented.shape[0]):
@@ -106,12 +106,12 @@ def image_from_segmented(segmented, color_from_body=None):
             image[r, c, :] = color_from_body.get(body, (0, 0, 0))
     return image
 
-def get_image(camera_pos, target_pos, width=640, height=480, vertical_fov=60.0, near=0.02, far=5.0,
+def get_image(client_id, camera_pos, target_pos, width=640, height=480, vertical_fov=60.0, near=0.02, far=5.0,
               segment=False, segment_links=False):
     # computeViewMatrixFromYawPitchRoll
     view_matrix = p.computeViewMatrix(cameraEyePosition=camera_pos, cameraTargetPosition=target_pos,
-                                      cameraUpVector=[0, 0, 1], physicsClientId=CLIENT)
-    projection_matrix = get_projection_matrix(width, height, vertical_fov, near, far)
+                                      cameraUpVector=[0, 0, 1], physicsClientId=client_id)
+    projection_matrix = get_projection_matrix(client_id, width, height, vertical_fov, near, far)
     if segment:
         if segment_links:
             flags = p.ER_SEGMENTATION_MASK_OBJECT_AND_LINKINDEX
@@ -124,7 +124,7 @@ def get_image(camera_pos, target_pos, width=640, height=480, vertical_fov=60.0, 
                                           shadow=False,
                                           flags=flags,
                                           renderer=p.ER_TINY_RENDERER, # p.ER_BULLET_HARDWARE_OPENGL
-                                          physicsClientId=CLIENT)[2:])
+                                          physicsClientId=client_id)[2:])
     depth = far * near / (far - (far - near) * image.depthPixels)
     # https://github.com/bulletphysics/bullet3/blob/master/examples/pybullet/examples/pointCloudFromCameraImage.py
     # https://github.com/bulletphysics/bullet3/blob/master/examples/pybullet/examples/getCameraImageTest.py
@@ -137,6 +137,6 @@ def get_image(camera_pos, target_pos, width=640, height=480, vertical_fov=60.0, 
                 segmented[r, c, :] = demask_pixel(pixel)
     return CameraImage(image.rgbPixels, depth, segmented)
 
-def set_default_camera():
+def set_default_camera(client_id):
     from pybullet_planning.interfaces.env_manager.pose_transformation import Point
-    set_camera(160, -35, 2.5, Point())
+    set_camera(client_id, 160, -35, 2.5, Point())
